@@ -21,59 +21,60 @@
 | `None` | `None` | — | Absence of value; compare with `is None` |
 
 **Key ideas**
+
 - **Mutable vs immutable:** mutating a list passed into a function changes the caller's list. Never use a mutable default argument:
-  ```python
-  def add(item, bucket=None):   # correct
-      if bucket is None:        # not `bucket or []`, which would swap a caller's empty list for a new one
-          bucket = []
-      bucket.append(item)
-      return bucket
-  ```
+    ```python
+    def add(item, bucket=None):   # correct
+        if bucket is None:        # not `bucket or []`, which would swap a caller's empty list for a new one
+            bucket = []
+        bucket.append(item)
+        return bucket
+    ```
 - **`==` vs `is`:** `==` compares value, `is` compares identity.
 - **Truthiness:** `0`, `""`, `[]`, `{}`, `None` are falsy.
 - **Type hints** (`def f(x: int) -> str:`) are not enforced at runtime but power IDEs, `mypy`, and frameworks like FastAPI/Pydantic.
-- **Comprehensions:** `[x*2 for x in rows if x > 0]`, `{k: v for k, v in pairs}`, generator `(x for x in rows)` — generators are lazy and memory-efficient (important for big data).
+- **Comprehensions:** `[x*2 for x in rows if x > 0]` (list), `{k: v for k, v in pairs}` (dict), and the generator expression `(x for x in rows)`. The brackets decide when the work happens: a list comprehension is **eager** (runs the whole loop now and keeps every item in memory); a generator is **lazy** (produces one item at a time, only when asked). Generators keep memory flat on huge inputs (important for big data), but can be looped over only once and don't support indexing or `len()`.
 
 ### 2. Control flow
 - `if / elif / else`; ternary `a if cond else b`
 - `for` over any iterable; `while` with `break` / `continue`; `for ... else` (runs if no `break`)
 - `match` (3.10+) for structural pattern matching:
-  ```python
-  match event:
-      case {"type": "click", "x": x}: handle_click(x)
-      case _: ignore()
-  ```
+    ```python
+    match event:
+        case {"type": "click", "x": x}: handle_click(x)
+        case _: ignore()
+    ```
 - Useful built-ins:
-  - `enumerate(items)`: loops with an index and the item together
-  - `zip(a, b)`: pairs up items from several iterables
-  - `range(start, stop, step)`: produces a sequence of integers
-  - `sorted(items, key=...)`: returns a new sorted list, using `key` to choose what to sort by
-  - `any(items)` / `all(items)`: `True` if at least one / every item is truthy
-  - `map(fn, items)`: applies a function to every item
-  - `filter(fn, items)`: keeps only the items where the function returns `True`
+    - `enumerate(items)`: loops with an index and the item together
+    - `zip(a, b)`: pairs up items from several iterables
+    - `range(start, stop, step)`: produces a sequence of integers
+    - `sorted(items, key=...)`: returns a new sorted list, using `key` to choose what to sort by
+    - `any(items)` / `all(items)`: `True` if at least one / every item is truthy
+    - `map(fn, items)`: applies a function to every item
+    - `filter(fn, items)`: keeps only the items where the function returns `True`
 
 ### 3. Functions
 - Parameters:
-  - **Positional:** matched by order (`f(1, 2)`)
-  - **Keyword:** matched by name (`f(a=1, b=2)`)
-  - **Default:** used when no value is passed (`def f(a, b=10)`)
-  - **`*args`:** collects any extra positional arguments into a tuple
-  - **`**kwargs`:** collects any extra keyword arguments into a dict
-  - **Keyword-only:** anything after `*` must be passed by name (`def f(a, *, b)`)
+    - **Positional:** matched by order (`f(1, 2)`)
+    - **Keyword:** matched by name (`f(a=1, b=2)`)
+    - **Default:** used when no value is passed (`def f(a, b=10)`)
+    - **`*args`:** collects any extra positional arguments into a tuple
+    - **`**kwargs`:** collects any extra keyword arguments into a dict
+    - **Keyword-only:** anything after `*` must be passed by name (`def f(a, *, b)`)
 - **Closures:** an inner function that remembers variables from the function that created it, even after that function has returned (e.g., `make_multiplier(3)` returns a function that always multiplies by 3). **Lambda:** a small, one-expression function with no name, often used as a `key` or callback (`sorted(rows, key=lambda r: r["age"])`).
 - **Decorators** wrap functions (used heavily for routes, auth, retries, logging):
-  ```python
-  import functools, time
-  def timed(fn):
-      @functools.wraps(fn)
-      def wrapper(*a, **kw):
-          start = time.perf_counter()
-          try:
-              return fn(*a, **kw)
-          finally:
-              print(f"{fn.__name__} took {time.perf_counter()-start:.3f}s")
-      return wrapper
-  ```
+    ```python
+    import functools, time
+    def timed(fn):
+        @functools.wraps(fn)
+        def wrapper(*a, **kw):
+            start = time.perf_counter()
+            try:
+                return fn(*a, **kw)
+            finally:
+                print(f"{fn.__name__} took {time.perf_counter()-start:.3f}s")
+        return wrapper
+    ```
 - **Generators** (`yield`) stream data one item at a time — process a 10 GB file without loading it into memory.
 
 ---
@@ -130,14 +131,15 @@ else:
 finally:
     ...          # always runs — cleanup
 ```
+
 - Catch **specific** exceptions; never bare `except:`.
 - Create a **custom exception hierarchy** (`class AppError(Exception)`, `class NotFound(AppError)`) so API layers can map them to status codes.
 - `raise ... from e` preserves the root cause.
 - **Context managers (`with`)** guarantee cleanup — the Pythonic fix for *resource leaks* (see Part E):
-  ```python
-  with open("data.csv") as f, db.connect() as conn:
-      ...
-  ```
+    ```python
+    with open("data.csv") as f, db.connect() as conn:
+        ...
+    ```
 - EAFP ("easier to ask forgiveness") is idiomatic Python vs LBYL ("look before you leap").
 
 ### Modules and packages
@@ -152,14 +154,14 @@ finally:
 - **Dependencies:** `requirements.txt` (pinned) or `pyproject.toml` (modern standard).
 - **Build/distribute:** `pyproject.toml` + build backend → `python -m build` → wheel (`.whl`) → `pip install` / publish to PyPI.
 - Typical project layout:
-  ```
-  my_app/
-  ├── pyproject.toml
-  ├── src/my_app/
-  │   ├── __init__.py
-  │   ├── api/  services/  repositories/  models/
-  └── tests/
-  ```
+    ```
+    my_app/
+    ├── pyproject.toml
+    ├── src/my_app/
+    │   ├── __init__.py
+    │   ├── api/  services/  repositories/  models/
+    └── tests/
+    ```
 
 ---
 
@@ -219,20 +221,47 @@ FastAPI example: `def get_user(db: Session = Depends(get_db)): ...`
 - **Idempotent** = doing the request N times has the same effect as once.
 - Problem: concurrent users, double-clicks, or client retries can cause duplicate orders/records.
 - Solution: **check whether the request has already been processed** or the data is a duplicate:
-  - Client sends an **`Idempotency-Key`** header; server stores key → result and returns the stored result on repeats.
-  - Use DB **unique constraints** / upserts (`INSERT ... ON CONFLICT DO NOTHING`).
+    - Client sends an **`Idempotency-Key`** header; server stores key → result and returns the stored result on repeats.
+    - Use DB **unique constraints** / upserts (`INSERT ... ON CONFLICT DO NOTHING`).
 
 ### 3. Partial failure in batches
 When inserting thousands of records and some fail:
+
 | Strategy | Behavior | Use when |
 |---|---|---|
 | **All-or-nothing** | Wrap in one transaction; any failure → rollback all | Financial data, strong consistency needed |
 | **Partial success** | Commit valid rows, report failures per item (often `207 Multi-Status` or a result list) | Bulk imports, ingestion pipelines |
 
-Techniques for large inserts: chunk into batches (e.g., 1,000 rows), use bulk APIs (`executemany`, `COPY`), send bad records to a **dead-letter/quarantine table**, make batches idempotent so retries are safe.
+**Techniques for large inserts**
+
+- **Chunk into batches** (e.g., 1,000 rows). This limits memory and lock time, and a failure only affects one batch. Tune the size, and watch per-statement parameter limits (Postgres: ~65k placeholders).
+- **Use bulk APIs:** `executemany` reuses one statement for many rows. `COPY` streams rows in the DB's native bulk format and is fastest. ➕ `COPY` can't upsert, so **COPY into a staging table**, then upsert from staging into the real table.
+- **Dead-letter / quarantine table:** validate before inserting. If a batch fails, retry it in smaller pieces to isolate the bad row(s). Store each bad row with its **error message, batch ID, and timestamp**, then keep loading. Never drop rows silently.
+
+➕ **Making batches idempotent (safe to retry)**
+
+An upsert keyed on a unique key is already idempotent row by row. Reruns break only in these spots:
+
+| Technique | Why |
+|---|---|
+| **Upsert on a stable natural key** (`order_id`), not a key generated during the load | A replayed row overwrites itself instead of duplicating |
+| **Deterministic batch boundaries:** key ranges or time windows, not `LIMIT/OFFSET` on changing data | A rerun processes exactly the same rows |
+| **Dedupe within the batch** (latest per key) | The same key twice in one batch makes MERGE error or pick randomly (Unit 11) |
+| **"Newer wins" guard:** update only if incoming `modified_at` > existing | Replaying an old batch can't overwrite newer data |
+| **One transaction per batch + batch log** (`batch_id`, status) in a control table | Reruns skip completed batches and resume at the failed one. Move the watermark only after success (Unit 11). |
+| **Deterministic values only:** `SET qty = 5`, not `qty = qty + 5`; timestamps from run parameters, not `now()` | Increments and clock values change on every rerun |
+| **Soft deletes / tombstones** (`is_deleted = true`) | A delete replays like any other upsert |
+
+```sql
+ON CONFLICT (order_id) DO UPDATE SET ...
+WHERE EXCLUDED.modified_at > orders.modified_at
+```
+
+**Pipeline:** validate → batch → bulk-load each batch in its own transaction → quarantine bad rows → log the batch as done.
 
 ### 4. Error design: human vs machine
 A good error response serves both:
+
 - **Consistent status code** (machine)
 - **Stable error code** (machine) and **human-readable message** (human)
 - **`details` array** showing exactly which fields failed
@@ -258,8 +287,8 @@ A good error response serves both:
 ### 6. Timeouts & retries
 - **Always set timeouts** on outbound calls (`requests.get(url, timeout=5)`) — otherwise one slow service can hang yours.
 - **Retry** transient failures (timeouts, `502/503/504`, `429`) — not other `4xx` client errors (`400`, `401`, `403`, `404`, `422`), which will fail the same way every time.
-- Use **exponential backoff + jitter**, cap the number of attempts, and only retry **idempotent** operations (or ones protected by an idempotency key).
-- Related: **circuit breaker** stops calling a service that keeps failing.
+- Use **exponential backoff** (each wait doubles: 1s, 2s, 4s…, up to a cap, so a struggling service can recover) **+ jitter** (random wait times, so many clients don't retry in sync — the "thundering herd"), cap the number of attempts, and only retry **idempotent** operations (or ones protected by an idempotency key).
+- Related: **circuit breaker** stops calling a service that keeps failing (after N failures it fails fast with an error or fallback, then lets a few test calls through after a cooldown — prevents cascading failures when retries alone can't help).
 
 ### 7. Tracing and logging
 - A system's **log is critical** for debugging and auditing.
@@ -269,24 +298,28 @@ A good error response serves both:
 
 ### 8. Security
 **JWT (JSON Web Token)**
+
 - Format: **`header.payload.signature`** (each Base64URL-encoded)
-  - **Header:** algorithm and type (`{"alg": "HS256", "typ": "JWT"}`)
-  - **Payload (claims):** user/session data and timing — `sub` (user id), `role`, `iat` (issued at), **`exp` (expiry/timeout)**
-  - **Signature:** `HMAC(secret, header + "." + payload)` — proves the token wasn't tampered with
+    - **Header:** algorithm and type (`{"alg": "HS256", "typ": "JWT"}`)
+    - **Payload (claims):** user/session data and timing — `sub` (user id), `role`, `iat` (issued at), **`exp` (expiry/timeout)**
+    - **Signature:** `HMAC(secret, header + "." + payload)` — proves the token wasn't tampered with
 - Payload is **encoded, not encrypted** → never put secrets in it.
 - Stateless: server verifies signature + `exp` without a DB lookup. Common pattern: short-lived access token + longer-lived refresh token.
 
 **OAuth2**
+
 - Authorization framework letting an app access resources **on behalf of a user** without seeing their password ("Log in with Google").
 - Roles: resource owner, client, authorization server, resource server.
 - Common flows: Authorization Code (+ PKCE) for user apps; Client Credentials for service-to-service.
 - OAuth2 often issues JWTs as access tokens.
 
 **RBAC (Role-Based Access Control)** — case study
+
 - Store **roles in the DB and map them to users** (`users`, `roles`, `user_roles`, optionally `permissions`/`role_permissions`).
 - Check the role/permission on each endpoint (e.g., a decorator or dependency). Return `403` when authenticated but not allowed.
 
 **CORS (Cross-Origin Resource Sharing)** — case study
+
 - Browsers block JS from calling a different origin (scheme + domain + port) unless the server allows it.
 - Server replies with headers like `Access-Control-Allow-Origin`; non-simple requests trigger a **preflight `OPTIONS`** request.
 - Allow-list specific origins; avoid `*` with credentials.
@@ -304,6 +337,7 @@ Other basics: HTTPS everywhere, hash passwords (bcrypt/argon2), validate all inp
 ## Part F — Handling Lots of Data (DE perspective)
 
 Big questions from lecture:
+
 1. **How do we handle a lot of data?** Stream/process in chunks (generators, batching), parallelize, push work to the database/engine instead of Python loops.
 2. **How do we query a lot of data efficiently?** Indexes, pagination (prefer **keyset/cursor pagination** over large `OFFSET`), select only needed columns, partitioning, caching, columnar warehouses for analytics.
 3. **How do we store a lot of data efficiently?** Columnar formats (Parquet), compression, partitioning by date/key, choosing OLTP vs OLAP storage, retention/archival policies.
@@ -334,11 +368,13 @@ Everything in Part E (idempotency, batch failures, retries, logging) applies dir
 ## Practice Questions
 
 1. **Why is `def f(x=[])` a bug? How do you fix it?**
-   The default list is created once and shared by every call, so data leaks between calls. Use `x=None` and create the list inside: `if x is None: x = []`. (Avoid `x = x or []`: it replaces a caller's empty list with a new one.)
+
+    The default list is created once and shared by every call, so data leaks between calls. Use `x=None` and create the list inside: `if x is None: x = []`. (Avoid `x = x or []`: it replaces a caller's empty list with a new one.)
 
 
 2. **What's the difference between a list comprehension and a generator expression? When would you use each for a 50 GB file?**
-   A list comprehension builds the whole list in memory; a generator produces items one at a time. For a 50 GB file, use a generator.
+
+    A list comprehension builds the whole list in memory; a generator produces items one at a time. For a 50 GB file, use a generator.
 
 
 3. **Write a `@retry(times=3)` decorator with exponential backoff.**
@@ -360,50 +396,66 @@ Everything in Part E (idempotency, batch failures, retries, logging) applies dir
 
 
 4. **Explain encapsulation, inheritance, polymorphism, and abstraction with a data-pipeline example.**
-   Abstraction: a `Storage` interface with `save()`. Inheritance: `PostgresStorage` and `S3Storage` extend it. Polymorphism: the pipeline calls `storage.save()` without knowing which one it has. Encapsulation: each class hides its own connection details (`self._dsn`).
+
+    Abstraction: a `Storage` interface with `save()`. Inheritance: `PostgresStorage` and `S3Storage` extend it. Polymorphism: the pipeline calls `storage.save()` without knowing which one it has. Encapsulation: each class hides its own connection details (`self._dsn`).
 
 
 5. **What do `else` and `finally` do in a `try` block?**
-   `else` runs only if no exception was raised; `finally` always runs and is used for cleanup.
+
+    `else` runs only if no exception was raised; `finally` always runs and is used for cleanup.
 
 
 6. **Difference between a module and a package? What is `pyproject.toml` for?**
-   A module is one `.py` file; a package is a folder of modules. `pyproject.toml` declares the project's metadata, dependencies, and build settings.
+
+    A module is one `.py` file; a package is a folder of modules. `pyproject.toml` declares the project's metadata, dependencies, and build settings.
 
 
 7. **Compare monolith, modular monolith, and microservices. Which would you pick for a 3-person startup, and why?**
-   Usually a modular monolith: simple to build and deploy, with clean module boundaries so parts can be split into services later.
+
+    Usually a modular monolith: simple to build and deploy, with clean module boundaries so parts can be split into services later.
 
 
 8. **Design the endpoint to get order #17, and one to list a user's orders filtered by status, sorted by date, page 3.**
-   `GET /orders/17` (path parameter) and `GET /users/{id}/orders?status=shipped&sort=-created_at&page=3` (query parameters).
+
+    `GET /orders/17` (path parameter) and `GET /users/{id}/orders?status=shipped&sort=-created_at&page=3` (query parameters).
 
 
 9. **What content type do you use to upload a CSV via POST?**
+
     `multipart/form-data` (form data).
 
 
 10. **Explain DI in one sentence. How does it make testing easier?**
+
     A class receives its dependencies through an interface instead of creating them, so tests can pass in a fake or mock.
 
 
 11. **What are the three parts of a JWT, and what's in each? Is the payload secret?**
+
     Header (algorithm, type), payload (claims such as user ID, role, `iat`, `exp`), and signature (proves it wasn't changed). The payload is only Base64-encoded, so anyone can read it; it is not secret.
 
 
 12. **401 vs 403 — what's the difference?**
+
     401: the server doesn't know who you are (not logged in or bad token). 403: it knows who you are, but you aren't allowed.
 
 
 13. **How do you prevent a user double-clicking "Pay" from creating two charges?**
+
     Send an idempotency key with the request and store processed keys, plus a unique constraint in the database.
 
 
 14. **You're inserting 100,000 rows and row 52,310 fails. Describe both batch strategies and when you'd pick each.**
+
     All-or-nothing: one transaction, roll back everything — for data that must stay consistent, like payments. Partial success: commit valid rows and report or quarantine the failed ones — for bulk imports and pipelines.
 
 
-15. **Design an error response for a signup request missing `email` and `password`.**
+15. **➕ You load 100,000 rows in batches of 1,000 using `LIMIT 1000 OFFSET n` over the source table, and the job crashes at batch 43. Why isn't simply rerunning safe, and how do you fix the design?**
+
+    `OFFSET` counts positions, not rows. If source rows were inserted, deleted, or reordered between runs, batch 43 now holds a different set of rows, so some get skipped and others loaded twice. Define batches by something fixed instead: key ranges (`order_id` 42,001–43,000) or time windows bounded by watermarks. Upsert on the natural key with a "newer wins" guard, run each batch in its own transaction, and log completed batch IDs so the rerun resumes at batch 43.
+
+
+16. **Design an error response for a signup request missing `email` and `password`.**
     ```json
     {"error": {"code": "VALIDATION_ERROR", "message": "Some required fields are missing.",
       "details": [{"field": "email", "issue": "missing"}, {"field": "password", "issue": "missing"}]}}
@@ -411,17 +463,21 @@ Everything in Part E (idempotency, batch failures, retries, logging) applies dir
     Returned with status `400` or `422`.
 
 
-16. **Which errors should be retried, and why must retries be combined with idempotency?**
+17. **Which errors should be retried, and why must retries be combined with idempotency?**
+
     Retry temporary errors: timeouts, `429`, `502`, `503`, `504`. Don't retry other `4xx` errors. Without idempotency, a retried request that actually succeeded the first time creates duplicate data.
 
 
-17. **What is a correlation ID and why does it matter more in microservices?**
+18. **What is a correlation ID and why does it matter more in microservices?**
+
     An ID attached to a request and passed along to every service it touches. In microservices one request crosses many services, so it's the only way to connect their logs.
 
 
-18. **A frontend at `app.example.com` can't call `api.example.com`. What's happening and how do you fix it?**
+19. **A frontend at `app.example.com` can't call `api.example.com`. What's happening and how do you fix it?**
+
     The browser blocks it under CORS because it's a different origin. The API must return `Access-Control-Allow-Origin: https://app.example.com` and handle the preflight `OPTIONS` request.
 
 
-19. **Name three techniques each for querying and storing large datasets efficiently.**
+20. **Name three techniques each for querying and storing large datasets efficiently.**
+
     Querying: indexes, keyset/cursor pagination, selecting only needed columns (also partitioning, caching). Storing: columnar formats like Parquet, compression, partitioning by date/key (also retention policies).

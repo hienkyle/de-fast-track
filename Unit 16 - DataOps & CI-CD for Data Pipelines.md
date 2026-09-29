@@ -231,8 +231,8 @@ jobs:
 - In ADF Studio you work in a **feature branch**, test with **Debug**, then raise a PR to the **collaboration branch** (usually `main`).
 - Git stores each pipeline, dataset, linked service, trigger and data flow as a **JSON file**.
 - What gets deployed is an **ARM template** of the whole factory:
-  - `ARMTemplateForFactory.json`: all the resources
-  - `ARMTemplateParametersForFactory.json`: values that differ per environment
+    - `ARMTemplateForFactory.json`: all the resources
+    - `ARMTemplateParametersForFactory.json`: values that differ per environment
 
 ### 2. Two ways to produce the ARM template
 
@@ -401,97 +401,129 @@ In the e-commerce platform, **ADF orchestrates** and **Databricks transforms** (
 ## Practice Questions
 
 1. **What is DataOps, and how is it different from DevOps?**
-   DataOps applies Agile, DevOps and Lean ideas to data work. Unlike DevOps, it has to manage data as well as code, and data changes without code changes, so it adds data tests on every pipeline run.
+
+    DataOps applies Agile, DevOps and Lean ideas to data work. Unlike DevOps, it has to manage data as well as code, and data changes without code changes, so it adds data tests on every pipeline run.
 
 2. **Name five DataOps principles.**
-   Everything as code, automate everything repeatable, test code and data, environment isolation, small frequent releases (also observability and reproducibility).
+
+    Everything as code, automate everything repeatable, test code and data, environment isolation, small frequent releases (also observability and reproducibility).
 
 3. **What are the innovation loop and the production loop?**
-   Innovation: how fast and safely you change the pipeline (CI/CD). Production: how reliably the running pipeline delivers good data (monitoring, data tests).
+
+    Innovation: how fast and safely you change the pipeline (CI/CD). Production: how reliably the running pipeline delivers good data (monitoring, data tests).
 
 4. **Continuous Delivery vs Continuous Deployment?**
-   Delivery: every change is ready to deploy, and prod needs a manual approval. Deployment: every validated change goes to prod automatically.
+
+    Delivery: every change is ready to deploy, and prod needs a manual approval. Deployment: every validated change goes to prod automatically.
 
 5. **Why do most data teams choose Continuous Delivery?**
-   Bad data changes are expensive to undo (backfills, reprocessing, wrong reports already used), so a human gate before prod is worth the delay.
+
+    Bad data changes are expensive to undo (backfills, reprocessing, wrong reports already used), so a human gate before prod is worth the delay.
 
 6. **What does "build once, deploy many" mean, and why does it matter?**
-   The same artifact built in CI is promoted to every environment, and only configuration changes. Rebuilding per environment risks deploying something that was never tested.
+
+    The same artifact built in CI is promoted to every environment, and only configuration changes. Rebuilding per environment risks deploying something that was never tested.
 
 7. **Unit test vs data test?**
-   A unit test checks transformation logic on tiny fake data at CI time. A data test checks properties of the real output (uniqueness, not null, freshness) on every pipeline run.
+
+    A unit test checks transformation logic on tiny fake data at CI time. A data test checks properties of the real output (uniqueness, not null, freshness) on every pipeline run.
 
 8. **How do you make PySpark transformations unit-testable?**
-   Write them as pure functions (DataFrame in, DataFrame out), separate from reading and writing, so they can be tested on small in-memory DataFrames.
+
+    Write them as pure functions (DataFrame in, DataFrame out), separate from reading and writing, so they can be tested on small in-memory DataFrames.
 
 9. **What is dbt Slim CI?**
-   In CI, build and test only the models changed in the PR and their downstream models (`state:modified+`, compared with prod's `manifest.json`), deferring unchanged upstream models to prod (`--defer`). Faster and cheaper.
+
+    In CI, build and test only the models changed in the PR and their downstream models (`state:modified+`, compared with prod's `manifest.json`), deferring unchanged upstream models to prod (`--defer`). Faster and cheaper.
 
 10. **Why are environment branches (`dev`, `test`, `prod`) an anti-pattern?**
+
     Each environment ends up built from different code, the branches drift apart, and it breaks build once, deploy many.
 
 11. **What is drift, and how do you prevent it?**
+
     Differences between what's deployed and what's in Git, usually from manual changes. Prevent it by allowing changes to test and prod only through the CD pipeline.
 
 12. **Map these Azure DevOps terms to GitHub Actions: stage/job, task, agent, service connection, variable group.**
+
     Job, action, runner, `azure/login` with credentials or OIDC, secrets/variables.
 
 13. **Where do you put the approval for production deployments?**
+
     On the **environment** (Azure DevOps approvals and checks / GitHub environment protection rules), so every pipeline deploying there hits the same gate.
 
 14. **Why is workload identity federation (OIDC) preferred over a service principal secret?**
+
     No secret is stored, so nothing can leak or expire. The CI tool gets a short-lived token that Azure trusts through a federated credential.
 
 15. **Which ADF factories are connected to Git?**
+
     Only the dev factory. Test and prod are updated only by the CD pipeline.
 
 16. **What does ADF deploy between environments?**
+
     An ARM template of the whole factory (`ARMTemplateForFactory.json`) plus a parameters file with values that differ per environment.
 
 17. **Manual publish vs automated publish in ADF?**
+
     Manual: someone clicks Publish on the collaboration branch, and the ARM template goes to the `adf_publish` branch. That depends on a person and isn't validated in CI. Automated: the build pipeline uses the ADF utilities npm package to validate and export the ARM template from `main` on every merge. Automated is recommended.
 
 18. **How do you control which ADF properties become ARM parameters?**
+
     With a custom parameterization template (`arm-template-parameters-definition.json`) in the repo.
 
 19. **Why stop triggers before deploying ADF, and what happens after?**
+
     Updating active triggers fails or behaves unpredictably. After deploying, removed resources are cleaned up and triggers are restarted. This happens for every target environment, test and prod.
 
 20. **What's the best way to handle connection secrets in ADF across environments?**
+
     Linked services use Key Vault and managed identity, so the only per-environment parameter is the vault or resource URL.
 
 21. **Your ADF ARM deployment fails because the template has too many parameters. What's the fix?**
+
     Use the linked templates generated by the export (the limit is 256 parameters per template), or trim the parameterization template.
 
 22. **How do you hotfix a production ADF pipeline?**
+
     Branch from the commit deployed to prod, fix it, deploy through the pipeline, then merge the fix back into `main`. Never edit prod directly.
 
 23. **What is a Databricks Asset Bundle?**
+
     A project in Git with a `databricks.yml` that defines code plus jobs, pipelines and other resources, and per-environment targets. It's deployed with the Databricks CLI.
 
 24. **Name the main sections of `databricks.yml`.**
+
     `bundle` (name), `resources` (jobs, pipelines), `variables`, and `targets` (dev/test/prod settings).
 
 25. **Development mode vs production mode in a bundle?**
+
     Development prefixes names with `[dev <username>]` and pauses schedules, so developers are isolated. Production uses real names and active schedules, checks the Git branch, and should run as a service principal.
 
 26. **Why should prod Databricks jobs run as a service principal?**
+
     A job tied to a person breaks when they leave or lose access, and it gives the job that person's (usually broader) permissions.
 
 27. **Bundles vs Terraform for Databricks: which does what?**
+
     Terraform manages the platform (workspaces, metastore, catalogs, grants). Bundles manage the data product (jobs, pipelines, code).
 
 28. **In what order do you deploy infrastructure, Databricks and ADF, and why?**
+
     Infrastructure → Databricks → ADF. ADF activities reference Databricks jobs and resources that must already exist in that environment.
 
 29. **How do you avoid hard-coding `ecom_prod` in Databricks code?**
+
     Pass the catalog as a bundle variable / job parameter that each target sets differently.
 
 30. ➕ **What is Write-Audit-Publish?**
+
     Write new data to a staging location, run data tests on it, and publish only if they pass, so bad data never reaches consumers.
 
 31. ➕ **A prod deploy broke the gold tables. How do you roll back?**
+
     Redeploy the previous artifact version through the pipeline. Use Delta time travel to find the last good version of the affected tables, then `RESTORE` them to it.
 
 32. ➕ **Describe CI/CD for the e-commerce platform in one paragraph.**
+
     One repo with `infra/`, `databricks/` (bundle), `adf/` and `dbt/`. Developers work in the Git-connected dev factory and personal dev bundle targets. PRs to `main` run lint, unit tests, bundle validation, ADF validation and dbt Slim CI. Merging builds the artifacts once (ARM template, bundle) and deploys to test with OIDC-authenticated, least-privilege identities, then runs integration and data tests. Prod requires approval on the environment. It deploys infra → bundle (as a service principal) → ADF (stop triggers, deploy, restart), then runs a smoke test, and Unit 13 monitoring takes over.

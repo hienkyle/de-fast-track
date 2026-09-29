@@ -704,91 +704,121 @@ Nothing runs until each `.write` (an **action**). Each write becomes one job, an
 ## Practice Questions
 
 1. **Why can't big data just be processed on one powerful machine?**
-   A single machine's RAM and CPU have limits, and bigger machines get very expensive. Distributed processing splits the data into partitions across many machines and processes them in parallel, and you add machines as data grows.
+
+    A single machine's RAM and CPU have limits, and bigger machines get very expensive. Distributed processing splits the data into partitions across many machines and processes them in parallel, and you add machines as data grows.
 
 2. **Walk through MapReduce word count for "cat dog cat" on node 1 and "dog cat" on node 2, with a combiner.**
-   Map: node 1 → (cat,1)(dog,1)(cat,1); node 2 → (dog,1)(cat,1). Combiner: node 1 → (cat,2)(dog,1); node 2 → (dog,1)(cat,1). Shuffle: cat → [2,1], dog → [1,1]. Reduce: (cat,3), (dog,2).
+
+    Map: node 1 → (cat,1)(dog,1)(cat,1); node 2 → (dog,1)(cat,1). Combiner: node 1 → (cat,2)(dog,1); node 2 → (dog,1)(cat,1). Shuffle: cat → [2,1], dog → [1,1]. Reduce: (cat,3), (dog,2).
 
 3. **What does the combiner do, and why does it help?**
-   It pre-aggregates on each node before the shuffle, so fewer records travel over the network. `reduceByKey` in Spark does the same thing automatically.
+
+    It pre-aggregates on each node before the shuffle, so fewer records travel over the network. `reduceByKey` in Spark does the same thing automatically.
 
 4. **What was the main performance problem with Hadoop MapReduce, and how does Spark fix it?**
-   MapReduce writes intermediate results to disk after every step, and multi-step or iterative jobs repeat that disk I/O. Spark keeps intermediate data in memory and plans the whole job as one DAG, optimized by Catalyst.
+
+    MapReduce writes intermediate results to disk after every step, and multi-step or iterative jobs repeat that disk I/O. Spark keeps intermediate data in memory and plans the whole job as one DAG, optimized by Catalyst.
 
 5. **Name the three parts of the Spark architecture and the job of each.**
-   Driver: runs your code, holds the SparkSession, builds and optimizes the plan, schedules tasks. Cluster manager: allocates resources (executors). Worker nodes: host executors that run tasks and store data.
+
+    Driver: runs your code, holds the SparkSession, builds and optimizes the plan, schedules tasks. Cluster manager: allocates resources (executors). Worker nodes: host executors that run tasks and store data.
 
 6. **Your plan is "join orders with customers, then filter status = 'paid'". What does Spark actually run, and why?**
-   It filters first, then joins (predicate pushdown), because fewer rows go into the expensive join.
+
+    It filters first, then joins (predicate pushdown), because fewer rows go into the expensive join.
 
 7. **A job reads 12 input partitions, filters, then does a `groupBy` with default settings and AQE off. How many stages and tasks?**
-   2 stages (the groupBy shuffle splits them). Stage 0 has 12 tasks, Stage 1 has 200 tasks (`spark.sql.shuffle.partitions`).
+
+    2 stages (the groupBy shuffle splits them). Stage 0 has 12 tasks, Stage 1 has 200 tasks (`spark.sql.shuffle.partitions`).
 
 8. **With 4 executors × 3 cores each, how many tasks run at once? How many waves for 60 tasks?**
-   12 tasks at once, so 5 waves.
+
+    12 tasks at once, so 5 waves.
 
 9. **In the lecture's SparkSession config, what does each setting control?**
-   `spark.driver.memory` = RAM for the driver; `spark.executor.memory` = RAM per executor for tasks and cached data; `spark.executor.cores` = tasks each executor runs in parallel. `appName` names the app in the UI, and `getOrCreate()` actually creates (or reuses) the session.
+
+    `spark.driver.memory` = RAM for the driver; `spark.executor.memory` = RAM per executor for tasks and cached data; `spark.executor.cores` = tasks each executor runs in parallel. `appName` names the app in the UI, and `getOrCreate()` actually creates (or reuses) the session.
 
 10. **What does "resilient" mean in RDD?**
+
     If a partition is lost (an executor fails), Spark recomputes it from its lineage, the recorded chain of transformations, instead of relying on copies of the data.
 
 11. **Why prefer `reduceByKey` over `groupByKey`?**
+
     `reduceByKey` combines values inside each partition before the shuffle, so much less data moves. `groupByKey` sends every value across the network.
 
 12. **Give three differences between RDDs and DataFrames.**
+
     DataFrames have a schema (rows/columns), RDDs don't. DataFrames are optimized by Catalyst and Tungsten, RDDs run as written. In Python, DataFrame operations run in the JVM, while RDD lambdas run in Python processes with serialization overhead.
 
 13. **Classify each as a transformation or action: `filter`, `count`, `groupBy`, `show`, `withColumn`, `write.parquet`, `select`, `collect`.**
+
     Transformations: `filter`, `groupBy`, `withColumn`, `select`. Actions: `count`, `show`, `write.parquet`, `collect`.
 
 14. **What is lazy evaluation, and what are two benefits?**
+
     Spark records transformations in a DAG and runs nothing until an action. Benefits: it doesn't build full intermediate results after every line (saves memory), and it can optimize the whole chain together (reorder filters, prune columns, merge steps).
 
 15. **You call `df.count()` and then `df.show()` on the same filtered DataFrame. How many times is the source read? How do you avoid it?**
+
     Twice: each action recomputes from the source. Call `df.cache()` (then an action), and `unpersist()` when done.
 
 16. **Classify as narrow or wide, and explain why it matters: `filter`, `join`, `withColumn`, `groupBy`, `distinct`.**
+
     Narrow: `filter`, `withColumn` (no data movement, fast). Wide: `join`, `groupBy`, `distinct` (shuffle across the network, slow, creates a new stage).
 
 17. **Write PySpark to get total paid revenue per user, highest first.**
+
     `orders.filter(F.col("status") == "paid").groupBy("user_id").agg(F.sum("amount").alias("revenue")).orderBy(F.desc("revenue"))`
 
 18. **How do you find orders whose `user_id` doesn't exist in `customers` in PySpark?**
+
     `orders.join(customers, orders.user_id == customers.customer_id, "left_anti")`
 
 19. **Is `spark.sql("SELECT ...")` slower or faster than the equivalent DataFrame code?**
+
     Neither: both are compiled by Catalyst into the same physical plan.
 
 20. **List the Catalyst plan stages, and say where "column `amt` doesn't exist" is caught.**
+
     Unresolved logical plan (syntax) → resolved/analyzed logical plan (checks tables/columns against the catalog, **where the `amt` error is raised**) → optimized logical plan (pushdown, pruning, constant folding) → physical plan (algorithms, join strategy), chosen by a cost model, then code generation.
 
 21. **What is the difference between the logical plan and the physical plan?**
+
     The logical plan describes *what* to compute (your code, checked and optimized). The physical plan describes *how*: the actual execution order, algorithms, and join strategy.
 
 22. **Why can a Python UDF make a job slow even if the function is simple?**
+
     Rows are serialized from the JVM to a Python process and back, one at a time, and Catalyst can't optimize through it (no pushdown). Use built-in functions, or a `pandas_udf` if you really need Python.
 
 23. **You're joining a 500 GB `order_item` fact table with a 5 MB `products` table. Which join strategy should run, and why?**
+
     A broadcast hash join: `products` is copied to every executor, so the 500 GB table doesn't have to be shuffled. It happens automatically below the 10 MB threshold, or you can force it with `broadcast(products)`.
 
 24. **`repartition(10)` vs `coalesce(10)`: when do you use each?**
+
     `repartition` does a full shuffle, can increase or decrease, and gives even partitions. Use it to rebalance or fix skew. `coalesce` only decreases, avoids a full shuffle, and may be uneven. Use it to reduce output files before writing.
 
 25. **A stage has 199 tasks finishing in 5 seconds and one taking 20 minutes. What's happening, and how do you fix it?**
+
     Data skew: one key (often null or a very large customer) holds most rows. Fixes: rely on AQE skew-join handling, handle nulls separately, or salt the hot key.
 
 26. **Your job with 2 GB of data creates 200 tiny shuffle partitions. What two settings/features help?**
+
     Lower `spark.sql.shuffle.partitions` (e.g., 16–32), and keep AQE enabled so it coalesces small partitions automatically.
 
 27. **Why is `big_df.toPandas()` dangerous?**
+
     It pulls all the data into the driver's memory, which can crash the driver (OOM). Filter and aggregate in Spark first, or write the result to storage.
 
 28. **What three things does Adaptive Query Execution do at runtime?**
+
     Coalesces small shuffle partitions, switches sort-merge joins to broadcast joins when a side is small, and splits skewed partitions in joins.
 
 29. **Which column should you `partitionBy` when writing an orders table: `order_day` (the date of `order_date`) or `user_id`? Why?**
+
     `order_day`: it's often used in filters and has manageable cardinality, so partition pruning works. (The raw `order_date` timestamp would give one folder per timestamp.) `user_id` would create a huge number of tiny folders and files.
 
 30. **In the medallion pipeline, which lines actually trigger Spark jobs?**
+
     Only the actions, here the `.write...save()` calls (one job each, plus any `count`/`show`). Everything else only builds the plan.

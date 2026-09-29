@@ -675,79 +675,105 @@ Delta tables are read with `DeltaTable(...).to_pandas()`, never `pd.read_parquet
 ## Practice Questions
 
 1. **How does Python's role differ in a web app vs an OLAP lakehouse?**
-   In a web app it handles individual requests row by row, focused on low latency, availability, connection pooling, and ACID transactions (tools: SQLAlchemy ORM, Pydantic). In a lakehouse it manages and transforms batches of millions of rows, focused on throughput (tools: Pandas for small/medium data, Fabric/Spark for large data).
+
+    In a web app it handles individual requests row by row, focused on low latency, availability, connection pooling, and ACID transactions (tools: SQLAlchemy ORM, Pydantic). In a lakehouse it manages and transforms batches of millions of rows, focused on throughput (tools: Pandas for small/medium data, Fabric/Spark for large data).
 
 2. **When should you move a job from Pandas to Microsoft Fabric (or Spark)?**
-   When the data doesn't fit comfortably in one machine's memory (remember the working copies Pandas makes), or the transforms are heavy and complex enough to need a distributed engine.
+
+    When the data doesn't fit comfortably in one machine's memory (remember the working copies Pandas makes), or the transforms are heavy and complex enough to need a distributed engine.
 
 3. **Why is `np.array(prices) * 1.1` faster than a list comprehension?**
-   The array stores typed values in one contiguous block, and the multiplication runs as one compiled C loop (vectorization). The list comprehension runs Python bytecode for every element and handles separate Python objects.
+
+    The array stores typed values in one contiguous block, and the multiplication runs as one compiled C loop (vectorization). The list comprehension runs Python bytecode for every element and handles separate Python objects.
 
 4. **What is the result of `np.array([[1,2,3],[4,5,6]]).sum(axis=0)`?**
-   `[5, 7, 9]`: it sums down the rows, giving one value per column.
+
+    `[5, 7, 9]`: it sums down the rows, giving one value per column.
 
 5. **Can shapes `(3, 4)` and `(4,)` broadcast? What about `(3, 4)` and `(3,)`?**
-   `(3, 4)` and `(4,)`: yes, the rightmost dimensions match. `(3, 4)` and `(3,)`: no, 4 ≠ 3. Reshape the second to `(3, 1)` to make it work.
+
+    `(3, 4)` and `(4,)`: yes, the rightmost dimensions match. `(3, 4)` and `(3,)`: no, 4 ≠ 3. Reshape the second to `(3, 1)` to make it work.
 
 6. **Why does an integer column become `float64` after reading a file with blanks? How do you keep it as an integer?**
-   `NaN` is a float, so the column is upcast. Use the nullable `Int64` dtype (e.g., `dtype={"qty": "Int64"}`).
+
+    `NaN` is a float, so the column is upcast. Use the nullable `Int64` dtype (e.g., `dtype={"qty": "Int64"}`).
 
 7. **Name the three core Pandas objects.**
-   DataFrame (a table), Series (one typed column), Index (row labels used for lookup and alignment).
+
+    DataFrame (a table), Series (one typed column), Index (row labels used for lookup and alignment).
 
 8. **Compare a list of dicts and a DataFrame for processing a column of a million rows.**
-   A list of dicts is row-oriented, repeats key names, stores every value as a Python object (high memory), and needs a `for` loop. A DataFrame stores each column as a typed array and processes it with vectorized C/Cython code, so it's faster and smaller.
+
+    A list of dicts is row-oriented, repeats key names, stores every value as a Python object (high memory), and needs a `for` loop. A DataFrame stores each column as a typed array and processes it with vectorized C/Cython code, so it's faster and smaller.
 
 9. **Your notebook runs out of memory after several steps. What causes this, and what are three fixes?**
-   Intermediate DataFrames stored in global variables stay in memory until the kernel ends. Fixes: wrap steps in functions so temporary DataFrames are local; `del` large objects and run `gc.collect()`; load fewer columns and smaller dtypes (`usecols`, `category`); read in chunks.
+
+    Intermediate DataFrames stored in global variables stay in memory until the kernel ends. Fixes: wrap steps in functions so temporary DataFrames are local; `del` large objects and run `gc.collect()`; load fewer columns and smaller dtypes (`usecols`, `category`); read in chunks.
 
 10. **Write a filter for paid orders over 30. Why can't you use `and`?**
+
     `df[(df["status"] == "paid") & (df["amount"] > 30)]`. `and` needs a single True/False and fails on a Series. `&` compares element by element. The parentheses are needed because `&` binds tighter than `==` and `>`.
 
 11. **What's wrong with `df[df.amount > 30]["flag"] = True`? Fix it.**
+
     It's chained indexing: the assignment goes to a temporary copy, so `df` isn't changed. Use `df.loc[df["amount"] > 30, "flag"] = True`.
 
 12. **Why does computing a new field in a Python loop often crash, when the Pandas version doesn't?**
+
     One `None` or text value causes a `TypeError` and stops the loop. Pandas propagates NaN for missing values, so those rows become NaN and the rest are computed. A wrong column dtype can still cause errors, so convert first with `pd.to_numeric(..., errors="coerce")`.
 
 13. **Rank these from fastest to slowest: `.apply(axis=1)`, vectorized arithmetic, `np.where`.**
+
     Vectorized arithmetic ≈ `np.where` (both vectorized) > `.apply(axis=1)` (a Python function for every row).
 
 14. **`dropna()` vs `fillna()`: when do you use each?**
+
     Drop rows when a required field (key or main measure) is missing. Fill when there's a sensible default (`"unknown"`, 0 for a count, the last known value). Don't fill amounts with 0 without thinking, since it changes totals.
 
 15. **After `orders.merge(customers, left_on="user_id", right_on="customer_id")` you have more rows than `orders`. Why, and how do you catch it?**
+
     `customers` has duplicate `customer_id` values, so the rows multiply. Catch it with `validate="many_to_one"`, and compare `len()` before and after.
 
 16. **How do you find orders with no matching customer?**
+
     `merge(..., how="left", indicator=True)` and keep the rows where `_merge == "left_only"`.
 
 17. **`groupby().agg()` vs `groupby().transform()`: what's the difference?**
+
     `agg` returns one row per group (like `GROUP BY`). `transform` returns a value for every original row (like a window function), e.g., adding each user's total to every order row.
 
 18. **Keep only the latest record per `customer_id`, using `updated_at`.**
+
     `df.sort_values("updated_at").drop_duplicates(subset=["customer_id"], keep="last")`
 
 19. **Flatten API orders with nested `items` into one row per item that keeps `order_id`.**
+
     `pd.json_normalize(data, record_path="items", meta=["order_id"])`
 
 20. **Give three problems with CSV and how Parquet solves them.**
+
     CSV has no stored types (leading zeros lost, dates as text), must be read in full even for one column, and compresses poorly. Parquet stores the schema, is columnar (reads only the needed columns), and compresses well.
 
 21. **What are row groups and predicate pushdown in Parquet?**
+
     A Parquet file is split into row groups, each with min/max stats per column. With a filter like `amount > 100`, the reader skips row groups whose max is ≤ 100, so it reads less data.
 
 22. **Why can't you update one row in a Parquet file, and how does Delta handle updates?**
+
     Parquet files are immutable, so you'd have to rewrite the file. Delta writes new Parquet files with the changed rows and records in `_delta_log` which files are now valid, all in one atomic commit.
 
 23. **List four features Delta adds to Parquet.**
+
     Any four of: ACID transactions; `UPDATE`/`DELETE`/`MERGE`; schema enforcement and evolution; time travel; file statistics for data skipping.
 
 24. **How do you read version 3 of a Delta table from Pandas? What can stop this from working?**
+
     `DeltaTable(path, version=3).to_pandas()`. It fails if `vacuum` has already deleted the files that version needs.
 
 25. **Which format fits each case: (a) a finance export to open in Excel, (b) an API event log, (c) analytics files in a lake, (d) a Fabric lakehouse table that gets daily upserts?**
+
     (a) CSV, (b) JSON Lines, (c) Parquet, (d) Delta.
 
 26. **Describe what Pandas does in each medallion layer.**
+
     Bronze: load the raw data as is and only add metadata (load time, source file). Silver: clean and transform (types, nulls, deduplication, flattening, standardizing) and export. Gold: aggregate into reporting tables (daily revenue, facts and dimensions) for BI.

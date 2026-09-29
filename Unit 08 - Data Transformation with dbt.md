@@ -862,103 +862,137 @@ dbt docs generate
 ## Practice Questions
 
 1. **What does "dbt is the T in ELT" mean, and does dbt process the data?**
-   dbt handles only transformation, after data has been loaded. It compiles models into SQL and sends them to the warehouse. Snowflake does the actual processing, and no data passes through dbt.
+
+    dbt handles only transformation, after data has been loaded. It compiles models into SQL and sends them to the warehouse. Snowflake does the actual processing, and no data passes through dbt.
 
 2. **List four problems with managing transformations as raw SQL scripts, and how dbt fixes each.**
-   Hand-written DDL scripts → materializations generate them. Manual run order → `ref()` builds the DAG. Renames touch many files → names come from `ref()`, change once. Long SCD2 merge scripts → snapshots.
+
+    Hand-written DDL scripts → materializations generate them. Manual run order → `ref()` builds the DAG. Renames touch many files → names come from `ref()`, change once. Long SCD2 merge scripts → snapshots.
 
 3. **What's the difference between `dbt_project.yml` and `profiles.yml`? Why is `profiles.yml` kept outside the project?**
-   `dbt_project.yml` defines the project (name, paths, default configs). `profiles.yml` holds connections and credentials. It's kept out of the repo so secrets aren't committed to Git.
+
+    `dbt_project.yml` defines the project (name, paths, default configs). `profiles.yml` holds connections and credentials. It's kept out of the repo so secrets aren't committed to Git.
 
 4. **When do you use `source()` vs `ref()`?**
-   `source()` for raw Bronze tables that dbt didn't build (declared in `sources.yml`). `ref()` for anything dbt built: models, seeds, snapshots.
+
+    `source()` for raw Bronze tables that dbt didn't build (declared in `sources.yml`). `ref()` for anything dbt built: models, seeds, snapshots.
 
 5. **Why must you never hard-code table names in a model?**
-   dbt wouldn't see the dependency, so the DAG and run order would be wrong, and the name wouldn't change between dev and prod schemas.
+
+    dbt wouldn't see the dependency, so the DAG and run order would be wrong, and the name wouldn't change between dev and prod schemas.
 
 6. **What do `dbt debug` and `dbt compile` do?**
-   `debug` checks the connection to Snowflake and the config files. `compile` renders Jinja into plain SQL in `target/compiled/` without running anything.
+
+    `debug` checks the connection to Snowflake and the config files. `compile` renders Jinja into plain SQL in `target/compiled/` without running anything.
 
 7. **What's the difference between `dbt run` and `dbt build`?**
-   `run` only builds models. `build` runs seeds, models, snapshots and tests in DAG order, and skips downstream models if a test fails.
+
+    `run` only builds models. `build` runs seeds, models, snapshots and tests in DAG order, and skips downstream models if a test fails.
 
 8. **What does `dbt run --select +fct_orders` build?**
-   `fct_orders` and all of its upstream dependencies.
+
+    `fct_orders` and all of its upstream dependencies.
 
 9. **Name the four materializations and one good use for each.**
-   View: staging. Table: medium-sized marts. Incremental: large, growing facts. Ephemeral: small helper logic used as a CTE.
+
+    View: staging. Table: medium-sized marts. Incremental: large, growing facts. Ephemeral: small helper logic used as a CTE.
 
 10. **Staging is a view, intermediate is ephemeral, marts are tables. Where do you set this, and how does one mart become incremental?**
+
     Folder-level `+materialized` configs in `dbt_project.yml`, overridden with `{{ config(materialized='incremental', ...) }}` inside that model.
 
 11. **Explain what happens on each run of a `table` model vs an `incremental` model.**
+
     Table: drop, create and insert every record each run. Incremental: the first run loads everything, and later runs only merge or insert new/changed rows into the existing table.
 
 12. **What do `is_incremental()` and `{{ this }}` do in an incremental model?**
+
     `is_incremental()` is true only when the table exists, the model is incremental, and there's no `--full-refresh`, so the "only new rows" filter applies. `{{ this }}` refers to the existing target table, e.g. to read its `max(updated_at)`.
 
 13. **An incremental model without `unique_key` re-receives an updated order. What happens?**
+
     It's inserted again, so the order appears twice. With `unique_key='order_id'` and merge, the existing row is updated.
 
 14. **What is late-arriving data? Show how the naive filter misses it.**
+
     Data that lands after later records were already processed. If the watermark is `max(updated_at) = 23:59` and an order with `updated_at = 22:10` arrives afterwards, `updated_at > 23:59` excludes it permanently.
 
 15. **How does a look-back window fix it, and why doesn't it create duplicates?**
+
     Each run re-processes the last N days (`> max(updated_at) - N days`). With merge on `unique_key`, rows already present are updated instead of inserted twice.
 
 16. **What are the trade-offs when choosing the look-back size?**
+
     Too small misses data that arrives later than the window. Too large re-scans a lot of data each run and costs more. Size it from observed lateness, and add a periodic full refresh as a safety net.
 
 17. **Why can `updated_at` be unreliable, and what are the alternatives?**
+
     Some tables don't have it, and some systems don't update it on every change. Alternatives: hash diffs (compare a hash of the columns, most reliable), filtering on load time (`_loaded_at`), or append-only with deduplication downstream.
 
 18. **How does a hash key detect a changed customer?**
+
     Hash the business columns (e.g. `generate_surrogate_key(['full_name','email','city'])`), store it, and on each run compare the new hash with the stored one. A different hash means at least one column changed.
 
 19. **Compare `append`, `merge` and `delete+insert`.**
+
     Append inserts only, with no updates (immutable events). Merge updates matching keys and inserts new ones. Delete+insert removes target rows with matching keys, then inserts the new batch.
 
 20. **What does a snapshot do, and what are its two strategies?**
+
     Implements SCD Type 2: tracks every version of a row with `dbt_valid_from` / `dbt_valid_to`. `timestamp` detects changes with `updated_at`. `check` compares listed columns (or a hash column).
 
 21. **How do you get the current version of each customer from a snapshot?**
+
     `where dbt_valid_to is null`.
 
 22. **Why should you snapshot raw sources, and never full-refresh a snapshot?**
+
     History can't be regenerated later. The snapshot table is the only copy of past versions.
 
 23. **What are seeds for? Give two examples, and one thing they shouldn't be used for.**
+
     Small, static reference data that rarely changes: country codes, currency mapping. Not for loading large or frequently changing data.
 
 24. **Name the four built-in generic tests. How does dbt decide a test passed?**
+
     `unique`, `not_null`, `accepted_values`, `relationships`. A test is a query returning failing rows: zero rows = pass.
 
 25. **Write a singular test that fails if any order has a negative amount.**
+
     `select * from {{ ref('fct_orders') }} where amount < 0` in `tests/assert_no_negative_amounts.sql`.
 
 26. **What do `{{ }}`, `{% %}` and `{# #}` mean in Jinja?**
+
     Expression (outputs a value), statement (logic, no output), comment (removed from compiled SQL).
 
 27. **Write a Jinja loop that creates a `sum(case when ...)` column for each payment method in a list.**
+
     `{% set pms = ['card','cod'] %}` then `{% for pm in pms %} sum(case when payment_method = '{{ pm }}' then amount else 0 end) as {{ pm }}_amount{% if not loop.last %},{% endif %} {% endfor %}`.
 
 28. **What is a macro, and why use one? Write one that converts cents to dollars.**
+
     A reusable Jinja function in `macros/` that avoids repeating logic (DRY). `{% macro cents_to_dollars(col) %} round({{ col }} / 100.0, 2) {% endmacro %}`, used as `{{ cents_to_dollars('amount_cents') }}`.
 
 29. **How do you use less data when developing than in production?**
+
     Check `target.name` (e.g. `{% if target.name == 'dev' %} where ordered_at >= dateadd(day, -30, current_date) {% endif %}`), ideally wrapped in a macro.
 
 30. **Why do many teams override `generate_schema_name`?**
+
     By default, dbt prefixes custom schemas with the target schema (`DBT_HIEN_marts`, and also `PROD_marts`). The override keeps clean names like `MARTS` in prod and per-developer schemas in dev.
 
 31. **What does Slim CI run, and what do `state:modified+`, `--state` and `--defer` do?**
+
     Only changed models and their downstream models. `state:modified+` selects them by comparing with prod's `manifest.json` (given by `--state`). `--defer` reads unchanged upstream models from prod instead of rebuilding them.
 
 32. **Describe the path of a change from your laptop to production.**
+
     Branch → edit and `dbt build` in your dev schema → PR → CI builds and tests the changes → review → merge to main → the scheduled prod job (`dbt build --target prod`) deploys it.
 
 33. **Give four ways to make a dbt project run faster or cheaper on Snowflake.**
+
     Use incremental for large tables, `cluster_by` on big tables, bigger warehouses only for heavy models (`snowflake_warehouse`), more `threads`, less data in dev, only build what changed, filter early in staging.
 
 34. **When should an ephemeral model become a view?**
+
     When many models use it (its SQL gets copied into each one) or when you need to query it for debugging.

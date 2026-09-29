@@ -93,12 +93,12 @@ Data Factory  adf-ecom-prod
 **Data movement:**
 
 - **Copy activity** is the workhorse. You give it a source, a sink, and optionally a **column mapping**. Key settings:
-  - **DIUs (Data Integration Units)**: compute power on the Azure IR, set automatically by default
-  - **Parallel copies**
-  - **Staged copy** through Blob, used for example with PolyBase or COPY into Synapse (both explained in Part D)
-  - **Fault tolerance**: skip bad rows and log them
-  - **Sink write behavior**: insert or **upsert**
-  - Formats: CSV, JSON, **Parquet**, Avro, ORC, Delta. Compression.
+    - **DIUs (Data Integration Units)**: compute power on the Azure IR, set automatically by default
+    - **Parallel copies**
+    - **Staged copy** through Blob, used for example with PolyBase or COPY into Synapse (both explained in Part D)
+    - **Fault tolerance**: skip bad rows and log them
+    - **Sink write behavior**: insert or **upsert**
+    - Formats: CSV, JSON, **Parquet**, Avro, ORC, Delta. Compression.
 
 **Data transformation:**
 
@@ -716,139 +716,185 @@ Most real Azure pipelines are a **hybrid**: ELT into bronze, Spark for heavy cle
 ## Practice Questions
 
 1. **What makes a job "batch"?**
-   It processes a bounded input (a day, a file, a window), runs on a schedule or trigger, favors throughput over latency, and can be rerun for the same input.
+
+    It processes a bounded input (a day, a file, a window), runs on a schedule or trigger, favors throughput over latency, and can be rerun for the same input.
 
 2. **ADF: explain the difference between a linked service and a dataset.**
-   A linked service is the connection (how to connect and authenticate). A dataset is a named reference to specific data (a table or file path) through that linked service.
+
+    A linked service is the connection (how to connect and authenticate). A dataset is a named reference to specific data (a table or file path) through that linked service.
 
 3. **Which integration runtime do you need to copy from a SQL Server in the company's data center?**
-   A self-hosted IR installed on a machine that can reach the server. It only needs outbound HTTPS.
+
+    A self-hosted IR installed on a machine that can reach the server. It only needs outbound HTTPS.
 
 4. **Your Lookup activity needs to read 20,000 config rows. Problem?**
-   Lookup returns at most 5,000 rows / 4 MB. Page the results, filter them down, or restructure (for example, process the rows in batches with child pipelines).
+
+    Lookup returns at most 5,000 rows / 4 MB. Page the results, filter them down, or restructure (for example, process the rows in batches with child pipelines).
 
 5. **You need a loop inside a loop in ADF. How?**
-   ForEach can't be nested directly. Put the inner ForEach in a child pipeline and call it with Execute Pipeline.
+
+    ForEach can't be nested directly. Put the inner ForEach in a child pipeline and call it with Execute Pipeline.
 
 6. **Schedule trigger vs tumbling window trigger: which for an hourly incremental load that must backfill the last 30 days?**
-   Tumbling window. It supports backfill from a past start time, passes window start and end times, and has retries and dependencies.
+
+    Tumbling window. It supports backfill from a past start time, passes window start and end times, and has retries and dependencies.
 
 7. **A file lands in `landing/suppliers/` at unpredictable times. How do you process it right away?**
-   A storage event trigger on BlobCreated, filtered by path prefix `landing/suppliers/` and suffix `.csv`. It works through Event Grid, so the Event Grid resource provider must be registered.
+
+    A storage event trigger on BlobCreated, filtered by path prefix `landing/suppliers/` and suffix `.csv`. It works through Event Grid, so the Event Grid resource provider must be registered.
 
 8. **You edited a pipeline and saved it, but last night's scheduled run used the old logic. Why?**
-   Saved changes aren't live until they are published. Triggers only run the published version. Debug runs use the saved version.
+
+    Saved changes aren't live until they are published. Triggers only run the published version. Debug runs use the saved version.
 
 9. **Write the expression for today's folder path `orders/yyyy/MM/dd`, and show how to put a watermark variable inside a SQL string.**
-   `@concat('orders/', formatDateTime(utcNow(), 'yyyy/MM/dd'))`. Inside a string: `... WHERE modified_at > '@{variables('oldWatermark')}'`.
+
+    `@concat('orders/', formatDateTime(utcNow(), 'yyyy/MM/dd'))`. Inside a string: `... WHERE modified_at > '@{variables('oldWatermark')}'`.
 
 10. **In a watermark pattern, why update the watermark only after the Copy succeeds?**
+
     If the copy fails, the watermark stays put, so the next run re-copies the same range and no data is lost.
 
 11. **Your source is PostgreSQL. Can ADF's Stored Procedure activity update the watermark table there? Where should that table live?**
+
     No. The Stored Procedure activity only supports the SQL Server family. Keep control, watermark and log tables in a separate Azure SQL control database (or use the Script activity).
 
 12. **What's a metadata-driven pipeline, and why use one?**
+
     A generic pipeline driven by a control table (Lookup → ForEach → parameterized Copy). A new table is a new row, not a new pipeline.
 
 13. **Name the four dependency conditions and one use of Failed.**
+
     Succeeded, Failed, Completed, Skipped. A Failed path can use a Web activity to call a Logic App that sends a Teams or email alert.
 
 14. **How should ADF authenticate to ADLS and Databricks?**
+
     With its managed identity, granted the right roles. Any remaining secrets go through a Key Vault linked service.
 
 15. **Describe ADF CI/CD with Git.**
+
     Develop in feature branches and merge to the collaboration branch. Publishing generates ARM templates, which a CI/CD pipeline deploys to test and prod with parameter overrides, stopping and restarting triggers around the deployment.
 
 16. **Mapping Data Flow vs a Databricks notebook: when would you pick each?**
+
     Data Flow for low-code, moderate transformations by non-coders. Databricks for complex, large-scale, code-based logic, Delta features, and more control over cost.
 
 17. **Databricks: all-purpose cluster vs job cluster vs serverless?**
+
     Interactive and shared (pricier) / created per job run and cheaper, the production choice / no cluster management, starts fast, billed in DBUs only.
 
 18. **What makes up the cost of classic Databricks compute?**
+
     DBUs (Databricks charge) plus the Azure VM cost.
 
 19. **Unity Catalog: what's the three-level namespace, and what's an external location?**
+
     `catalog.schema.table`. An external location is a storage credential (such as an access connector's managed identity) plus an `abfss://` path that Unity Catalog governs.
 
 20. **Managed vs external table: what happens on `DROP TABLE`?**
+
     A managed table's data is deleted. An external table's files stay.
 
 21. **Why should a batch notebook read its date from `dbutils.widgets` instead of hard-coding it?**
+
     The same code then runs for any day, ADF or a job can pass the window date, and backfills and reruns need no code changes.
 
 22. **How does Auto Loader run as a batch job, and how does it avoid reprocessing files?**
+
     With `trigger(availableNow=True)` it processes everything new, then stops. It records processed files in its checkpoint folder.
 
 23. **What were Delta Live Tables and Databricks Workflows renamed to? What's the difference between a streaming table and a materialized view?**
+
     Lakeflow Declarative Pipelines and Lakeflow Jobs. A streaming table processes each new source row once (incremental). A materialized view is a stored query result that the pipeline keeps up to date.
 
 24. **How do you pass a date from ADF into a Databricks notebook, and return a result?**
+
     Set `baseParameters` on the Notebook activity and read it with `dbutils.widgets.get`. Return with `dbutils.notebook.exit(...)` and read it in ADF as `output.runOutput`.
 
 25. **Write the bronze → silver logic that makes reruns safe.**
+
     Deduplicate to the latest row per key, then `MERGE` into the silver Delta table (update when matched, insert when not).
 
 26. **What does liquid clustering replace?**
+
     Manual partitioning + Z-ORDER. Its clustering keys can be changed later without rewriting the table.
 
 27. **What are the main components of a Synapse workspace?**
+
     Dedicated SQL pool, serverless SQL pool, Spark pools, pipelines, and Synapse Link, all in Synapse Studio with a primary ADLS Gen2 account.
 
 28. **How many distributions does a dedicated SQL pool table have, and what do DWUs change?**
-    60. More DWUs spread those distributions across more compute nodes, which gives more power.
+
+    60\. More DWUs spread those distributions across more compute nodes, which gives more power.
 
 29. **Choose a distribution for: a 3 TB fact_sales, a 50 MB dim_product, a staging table.**
+
     Hash (on a high-cardinality join key like `customer_key`), replicated, round robin (usually as a heap).
 
 30. **Why is `order_date` a bad hash distribution column?**
+
     Rows for a date all land in one distribution, so loads and date-filtered queries hit a single distribution. That's skew and poor parallelism.
 
 31. **What are data skew and data movement, and why do they hurt?**
+
     Skew means uneven rows per distribution, so the slowest one sets the pace. Data movement means shuffling rows between nodes to satisfy joins or aggregations, which adds time.
 
 32. **What is a rowgroup, and why can too many partitions hurt a CCI table?**
+
     A batch of up to about 1 million rows compressed column by column. Each partition is split across 60 distributions, so over-partitioning leaves rowgroups far too small, which hurts compression and scan speed.
 
 33. **What is partition switching used for?**
+
     Instantly swapping a whole partition into or out of a table as a metadata-only operation, for fast loads and for archiving old data.
 
 34. **Why shouldn't Synapse's `COPY INTO` point at a Delta table folder? What do you do instead?**
+
     It reads plain files and ignores the Delta transaction log, so it would also load old or deleted file versions and create duplicates. Have Databricks write a Parquet export, load that into staging, then use CTAS/MERGE into the final table.
 
 35. **How is serverless SQL billed, and how do you keep it cheap?**
+
     Per TB processed. Use Parquet/Delta, partition pruning, only the columns you need, and views over curated gold data.
 
 36. **Serverless SQL fails to read a Gold Delta table that Databricks reads fine. Likely cause?**
+
     The table uses a newer Delta feature (such as deletion vectors) that Synapse's Delta reader doesn't support. Disable the feature on that table, or serve it through another engine.
 
 37. **What does CETAS do?**
+
     `CREATE EXTERNAL TABLE AS SELECT` writes a query's results to the lake (Parquet) and creates an external table over them.
 
 38. **Dedicated vs serverless SQL pool for a dashboard used by 300 people all day?**
+
     Dedicated (or Fabric Warehouse / Databricks SQL), for predictable performance and concurrency. Serverless suits exploration and lighter workloads.
 
 39. **Is Synapse deprecated? What should a new project consider?**
+
     No. It's supported, with no announced retirement, but Microsoft Fabric is the strategic successor. New projects should evaluate Fabric or Databricks.
 
 40. **Synapse Pipelines vs ADF?**
+
     The same engine and concepts, with small feature differences. Synapse Pipelines live inside the workspace. Pick one per solution.
 
 41. **Draw the classic Azure batch architecture in one line.**
+
     ADF (ingest and orchestrate) → ADLS bronze → Databricks (silver/gold Delta) → Synapse or Databricks SQL (serve) → Power BI.
 
 42. **Your nightly pipeline failed on 2026-09-23 and 24. How do you recover cleanly?**
+
     Fix the cause, then rerun the tumbling-window runs for those days (or repair the failed Databricks tasks). Idempotent MERGE/overwrite logic and window-based watermarks make the reruns safe.
 
 43. **Where do data-quality checks belong, and what happens to bad rows?**
+
     Between layers, mainly bronze → silver, using expectations or tests. Bad rows go to a quarantine table and alerts fire, rather than failing silently or dropping data.
 
 44. **ETL or ELT: which does this describe? "Raw data is loaded into the lake, then dbt models build the star schema in Databricks SQL."**
+
     ELT. Transformation happens after loading, inside the lakehouse.
 
 45. ➕ **List five cost-control measures for this pipeline.**
+
     Job clusters or serverless instead of all-purpose clusters. Auto-termination and auto-pause. Pause the dedicated SQL pool off-hours. Incremental loads. Parquet/Delta with compaction to cut serverless scans. Fewer tiny ADF activity runs.
 
 46. ➕ **Design the security for the end-to-end pipeline.**
+
     ADF's managed identity gets Blob Data Contributor on `bronze`, database users on the sources and the control database. Databricks uses an access connector, with Unity Catalog external locations and grants for silver/gold. Synapse's managed identity reads `gold`. Remaining secrets live in Key Vault (a linked service or a Key Vault–backed secret scope). Private endpoints (blob + dfs), a managed VNet for ADF and Synapse, VNet injection for Databricks, and group-based RBAC/ACLs for analysts.

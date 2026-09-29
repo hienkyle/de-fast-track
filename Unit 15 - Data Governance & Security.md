@@ -70,15 +70,15 @@ The examples continue the e-commerce platform. Units 11–14 built pipelines tha
 - **Minimize.** Don't ingest columns nobody needs. Data you don't have can't leak.
 - **Keep the re-identification key separate.** The `customer_hash → email` lookup lives in its own restricted schema.
 - ⚠️ **Don't mix up the three kinds of key or hash:**
-  - `customer_hash`: a keyed hash **for privacy**. Deterministic, so it can be joined across tables.
-  - `customer_key`: Unit 5's **integer surrogate key**. It identifies a dimension *version*, not a person.
-  - `row_hash`: Unit 5's **change-detection hash**. Unkeyed, so it gives no privacy protection.
+    - `customer_hash`: a keyed hash **for privacy**. Deterministic, so it can be joined across tables.
+    - `customer_key`: Unit 5's **integer surrogate key**. It identifies a dimension *version*, not a person.
+    - `row_hash`: Unit 5's **change-detection hash**. Unkeyed, so it gives no privacy protection.
 - **Silver is where access control matters most** (see Unit 13, Part D §4). That's where cleaned data becomes widely used.
 - ➕ **Right to erasure vs "immutable bronze":** Units 11 and 13 say to keep bronze raw and immutable, but a legal deletion request **overrides** that. Plan for it:
-  - Keep PII-bearing bronze on **short retention**.
-  - Never put personal data in **WORM** containers (Unit 10). They can't be deleted, not even to comply with erasure.
-  - Or use **crypto-shredding**: delete the person's key, and every copy becomes unreadable, including bronze and backups.
-  - On Delta, `DELETE` + `VACUUM`. Until you vacuum, time travel still holds the old files.
+    - Keep PII-bearing bronze on **short retention**.
+    - Never put personal data in **WORM** containers (Unit 10). They can't be deleted, not even to comply with erasure.
+    - Or use **crypto-shredding**: delete the person's key, and every copy becomes unreadable, including bronze and backups.
+    - On Delta, `DELETE` + `VACUUM`. Until you vacuum, time travel still holds the old files.
 - ⚠️ **Don't leak PII into logs.** Structured logs (Unit 13, Part E) should carry `customer_hash`, never an email. The same goes for error messages and quarantine tables.
 - **Non-production:** dev and test use **statically masked or synthetic** data, never a raw prod copy.
 
@@ -96,10 +96,10 @@ Spark has no built-in HMAC function, so this appends the secret key before hashi
 **Dynamic Data Masking (Azure SQL / Synapse dedicated pool)**
 
 - A masking rule is set **per column**. Functions:
-  - `default()`: full mask
-  - `email()`: shows `aXXX@XXXX.com`
-  - `partial(prefix, padding, suffix)`: e.g. show only the last 4 digits
-  - `random(low, high)`: for numbers
+    - `default()`: full mask
+    - `email()`: shows `aXXX@XXXX.com`
+    - `partial(prefix, padding, suffix)`: e.g. show only the last 4 digits
+    - `random(low, high)`: for numbers
 - Only users with **`UNMASK`** see real values.
 
 ```sql
@@ -263,9 +263,9 @@ Each layer assumes the others might fail.
 ### 3. Secrets and key management
 
 - **Azure Key Vault** stores **secrets** (passwords, connection strings), **keys** (CMK, signing), and **certificates**.
-  - Use the **Azure RBAC permission model** (e.g. *Key Vault Secrets User* for a pipeline identity).
-  - Turn on **soft delete + purge protection**. Purge protection is **required** when a vault holds CMKs, because losing the key means losing the data.
-  - Set **rotation** policies and expiry notifications.
+    - Use the **Azure RBAC permission model** (e.g. *Key Vault Secrets User* for a pipeline identity).
+    - Turn on **soft delete + purge protection**. Purge protection is **required** when a vault holds CMKs, because losing the key means losing the data.
+    - Set **rotation** policies and expiry notifications.
 - **Managed identities** remove credentials altogether. **System-assigned** identities are tied to one resource's lifecycle. **User-assigned** identities are standalone and can be shared across resources. They also prevent the **expired-credential** ingestion failure (Unit 13, Part D §1): there's no secret left to expire or leak.
 - **Databricks:** use **Key Vault–backed secret scopes**. `dbutils.secrets.get()` values are redacted in notebook output.
 - **Never** put secrets in code, notebooks, ADF JSON, or Git. ➕ Turn on **secret scanning** in the repo, so a committed secret is caught right away (Unit 1 explains why it must then be rotated).
@@ -397,106 +397,141 @@ These were covered in Units 9–11; here's the summary:
 ## Practice Questions
 
 1. **What's the difference between a direct identifier and a quasi-identifier? Give two of each.**
-   A direct identifier identifies a person on its own (email, national ID). A quasi-identifier only identifies them in combination with others (birth date, ZIP code).
+
+    A direct identifier identifies a person on its own (email, national ID). A quasi-identifier only identifies them in combination with others (birth date, ZIP code).
 
 2. **You removed names and emails from a dataset. Is it anonymous?**
-   Not necessarily. Quasi-identifiers like ZIP + birth date + gender can still re-identify most people. Generalize them or check k-anonymity.
+
+    Not necessarily. Quasi-identifiers like ZIP + birth date + gender can still re-identify most people. Generalize them or check k-anonymity.
 
 3. **Masking vs anonymization?**
-   Masking hides values from some users, but the real data still exists. Anonymization permanently removes the ability to identify anyone.
+
+    Masking hides values from some users, but the real data still exists. Anonymization permanently removes the ability to identify anyone.
 
 4. **Why is pseudonymized data still personal data under GDPR?**
-   It can be linked back to the person with extra information (the key or lookup table), and it still tracks one individual across records.
+
+    It can be linked back to the person with extra information (the key or lookup table), and it still tracks one individual across records.
 
 5. **Why is `sha2(email, 256)` without a secret a weak pseudonymization?**
-   Anyone can hash a list of known emails and match them (a dictionary attack). Use a keyed hash (HMAC) with a secret from Key Vault.
+
+    Anyone can hash a list of known emails and match them (a dictionary attack). Use a keyed hash (HMAC) with a secret from Key Vault.
 
 6. **Static vs dynamic masking: when do you use each?**
-   Static for dev/test copies, where data is permanently replaced. Dynamic for production tables where some users need real values and others don't.
+
+    Static for dev/test copies, where data is permanently replaced. Dynamic for production tables where some users need real values and others don't.
 
 7. **Tokenization vs encryption?**
-   Tokenization replaces the value with a random token and stores the mapping in a vault, with no mathematical link. Encryption transforms the value and can be reversed by anyone with the key.
+
+    Tokenization replaces the value with a random token and stores the mapping in a vault, with no mathematical link. Encryption transforms the value and can be reversed by anyone with the key.
 
 8. **Name four Dynamic Data Masking functions and what each shows.**
-   `default()` masks the value fully, `email()` shows the first letter plus `XXX@XXXX.com`, `partial()` shows a chosen prefix and suffix with custom padding in between, and `random()` returns a random number in a range.
+
+    `default()` masks the value fully, `email()` shows the first letter plus `XXX@XXXX.com`, `partial()` shows a chosen prefix and suffix with custom padding in between, and `random()` returns a random number in a range.
 
 9. **Why isn't Dynamic Data Masking a security boundary?**
-   Users can still filter on masked columns (`WHERE salary > 100000`) and infer the hidden values.
+
+    Users can still filter on masked columns (`WHERE salary > 100000`) and infer the hidden values.
 
 10. **How do you make only the `pii_readers` group see real customer names in `gold.dim_customer`?**
+
     Create a SQL function that returns the name when `is_account_group_member('pii_readers')` and a masked value otherwise, then `ALTER TABLE ... ALTER COLUMN full_name SET MASK`.
 
 11. **Where in the medallion architecture should PII be pseudonymized, and why?**
+
     Bronze → silver. Bronze keeps raw data under tight access for replay. Silver is widely used, so it should carry keys instead of identifiers.
 
 12. **A customer asks to be deleted. What must you do on a Delta table?**
+
     `DELETE` their rows, then `VACUUM`. Erasure also applies to "immutable" bronze and backups, so plan for it with short retention, no WORM storage for PII, or crypto-shredding.
 
 13. **What is Microsoft Purview, and what was it called before?**
+
     Microsoft's unified data governance service (formerly Azure Purview). It catalogs, classifies, and traces lineage across the data estate.
 
 14. **Name the two main parts of Purview's data governance and what each does.**
+
     Data Map: registers and scans sources, capturing metadata, classifications, and lineage. Unified Catalog: governance domains, data products, glossary, data quality, and discovery for consumers.
 
 15. **Does Purview copy your data?**
+
     No. It stores metadata only, sampling values to classify them. Access in Purview doesn't grant access to the data.
 
 16. **Purview's scan of ADLS fails with a permission error. What's missing?**
+
     Purview's managed identity needs **Storage Blob Data Reader** on the storage account or container (and network access if it's behind private endpoints).
 
 17. **Which integration runtime do you use to scan an on-prem SQL Server?**
+
     A self-hosted integration runtime.
 
 18. **System vs custom classifications?**
+
     System: 200+ built-in patterns (email, credit card, national IDs). Custom: your own regex or dictionary rules for organization-specific data.
 
 19. **How does ADF lineage get into Purview?**
+
     Connect the data factory to Purview. Copy, Data Flow, and Execute SSIS activities then report lineage automatically when they run.
 
 20. **Give three uses of lineage.**
+
     Impact analysis before changes, root-cause analysis when data is wrong, and audit/compliance (showing where PII flows).
 
 21. **What's a data product and a glossary term in the Unified Catalog?**
+
     A data product is a curated group of assets for a use case that consumers can request access to. A glossary term is a shared business definition (e.g. "active customer").
 
 22. **Data owner vs data steward?**
+
     The owner is accountable for the data and approves access. The steward maintains its metadata, definitions, and quality day to day.
 
 23. **Purview vs Unity Catalog?**
+
     Purview catalogs and governs metadata across the whole estate but mostly doesn't enforce access. Unity Catalog enforces access inside Databricks. Use both, with Purview scanning Unity Catalog.
 
 24. **Is data in ADLS encrypted if you do nothing?**
+
     Yes. Storage encryption (AES-256) is always on, with Microsoft-managed keys by default.
 
 25. **Why choose customer-managed keys?**
+
     Control over rotation, auditing key use, and the ability to revoke access to the data, often required by compliance.
 
 26. **What is TDE, and what does Always Encrypted add?**
+
     TDE encrypts the database files at rest and is on by default. Always Encrypted encrypts columns in the client, so the database engine and DBAs never see plaintext.
 
 27. **Why is purge protection required for a Key Vault holding CMKs?**
+
     If the key were permanently deleted, all data encrypted with it would be unrecoverable.
 
 28. **How do managed identities improve security and reliability?**
+
     There are no secrets to store, leak, rotate, or expire. That removes the "expired credential" pipeline failure from Unit 13.
 
 29. **A user has Reader on a storage account but can't read files. Why?**
+
     Reader is a control-plane role. Reading data needs a data-plane role (Storage Blob Data Reader) or ACLs.
 
 30. **A user has read ACL on a file but still gets "access denied". Why?**
+
     They need execute (x) permission on every parent folder to traverse the path.
 
 31. **You set a default ACL on `silver/`, but analysts still can't read existing files. Why?**
+
     Default ACLs apply only to children created afterwards. Apply the ACL recursively to existing items.
 
 32. **Which Unity Catalog privileges does an analyst need to query `ecom_prod.gold.fact_sales`?**
+
     `USE CATALOG` on `ecom_prod`, `USE SCHEMA` on `ecom_prod.gold`, and `SELECT` on the table (or the schema).
 
 33. **Why disable shared key access on a storage account?**
+
     Account keys give full access and bypass RBAC and ACLs. Without them, all access goes through Entra identities that can be audited and revoked.
 
 34. **List five audit or detection sources for a data platform.**
+
     StorageBlobLogs, Azure SQL auditing, Databricks audit logs, Key Vault logs, Entra sign-in logs (plus Defender for Cloud and Sentinel).
 
 35. ➕ **Design security for the e-commerce lakehouse in one paragraph.**
+
     Purview scans and classifies all sources. Bronze is restricted to pipeline identities and engineers, with CMK, private endpoints and short retention. Silver replaces PII with keyed hashes (`customer_hash`), with Unity Catalog masks and row filters. A separate PII vault is restricted to one group. Gold holds the star schema for analysts, with `full_name` masked. Access uses managed identities, Key Vault, and group-based least privilege. Audit logs go to Log Analytics with alerts.

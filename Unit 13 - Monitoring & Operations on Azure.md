@@ -402,14 +402,15 @@ ADFPipelineRun
 - **Event Hubs lag:** the Event Hubs service itself rarely lags. **Consumer lag** is common, though: a slow or crashed consumer falls behind while Event Hubs keeps buffering (Unit 12). Watch backlogged input events and **watermark delay** (Part A §7).
 - **CDC sends duplicates after a connector restart.** Connectors are **at-least-once** and replay from their last committed position. Deduplicate on the event's unique key (primary key + LSN / commit timestamp / event ID) **within a time window**, e.g. **3 hours**:
 
-```python
-deduped = (events
-    .withWatermark("event_ts", "3 hours")
-    .dropDuplicatesWithinWatermark(["event_id"]))   # Spark 3.5+
-```
+    ```python
+    deduped = (events
+        .withWatermark("event_ts", "3 hours")
+        .dropDuplicatesWithinWatermark(["event_id"]))   # Spark 3.5+
+    ```
 
-  - The window **limits state**. Without it, the dedup state keeps growing (Unit 12).
-  - ⚠️ A duplicate arriving **more than 3 hours later** gets through, because its key has already been removed from state. That's the accepted risk. The safety net is an **idempotent MERGE on key + version** at the sink, so a late duplicate updates the row instead of adding one.
+    - The window **limits state**. Without it, the dedup state keeps growing (Unit 12).
+    - ⚠️ A duplicate arriving **more than 3 hours later** gets through, because its key has already been removed from state. That's the accepted risk. The safety net is an **idempotent MERGE on key + version** at the sink, so a late duplicate updates the row instead of adding one.
+
 - **A new column appears in the CDC stream:** same rule as schema changes. **Discuss**, then accept or reject it. ➕ A **schema registry** (Event Hubs has one) makes producers declare changes.
 
 ### 2. Bronze / Raw layer
@@ -448,27 +449,28 @@ deduped = (events
 **Big data failures (Spark, Unit 7):**
 
 - **Data skew:** a few keys hold most of the rows, so a few tasks run far longer than the rest (visible in the Spark UI). Fixes:
-  - **AQE skew-join handling** (`spark.sql.adaptive.skewJoin.enabled`)
-  - **Broadcast** the small side of the join
-  - ➕ **Salt** hot keys
-  - Pre-aggregate before joining
+    - **AQE skew-join handling** (`spark.sql.adaptive.skewJoin.enabled`)
+    - **Broadcast** the small side of the join
+    - ➕ **Salt** hot keys
+    - Pre-aggregate before joining
 - **OOM on large shuffles:**
-  - **AQE** coalesces and splits shuffle partitions
-  - Filter rows and select columns **before** the join, and use **partition pruning** so only the needed data is read and joined
-  - Avoid `collect()` / `toPandas()` on large data
-  - Tune `spark.sql.shuffle.partitions`, or use memory-optimized nodes
+    - **AQE** coalesces and splits shuffle partitions
+    - Filter rows and select columns **before** the join, and use **partition pruning** so only the needed data is read and joined
+    - Avoid `collect()` / `toPandas()` on large data
+    - Tune `spark.sql.shuffle.partitions`, or use memory-optimized nodes
 - **Cluster too small:** a rarer infrastructure problem. Autoscaling max or policy limits are set too low, so jobs crawl or fail. Set **min/max constraints** on purpose. ⚠️ These are the same cluster policies Part C uses to cap cost, so balance cost against headroom.
 
 ### 4. Silver / Enriched layer
 
 - **Delta format:** Parquet data files **plus a transaction log** (`_delta_log`). That gives ACID writes, schema enforcement, and **time travel**, so you can roll back a bad load:
 
-```sql
-DESCRIBE HISTORY silver.orders;
-RESTORE TABLE silver.orders TO VERSION AS OF 41;
-```
+    ```sql
+    DESCRIBE HISTORY silver.orders;
+    RESTORE TABLE silver.orders TO VERSION AS OF 41;
+    ```
 
-  ⚠️ You can only roll back as far as `VACUUM` retention allows (default **7 days**). `VACUUM` saves storage cost (Part C) but shortens your recovery window.
+    ⚠️ You can only roll back as far as `VACUUM` retention allows (default **7 days**). `VACUUM` saves storage cost (Part C) but shortens your recovery window.
+
 - **History:** overwriting a table **loses the historical truth**, e.g. which segment a customer was in last month. Handle it with **SCD Type 2** (Unit 5; dbt snapshots in Unit 8) and keep bronze append-only.
 - **Governance:** **access control** on silver tables (Unity Catalog grants, RBAC/ACLs). PII masking and cataloging are covered in Unit 15.
 
@@ -483,11 +485,11 @@ RESTORE TABLE silver.orders TO VERSION AS OF 41;
 
 - **History / SCD:** some dimensions need their full change history (Type 2). Others are fine being overwritten (Type 1). Decide per attribute (Unit 5).
 - **Performance and cost:** slow queries and high cost. Options:
-  - Pre-aggregate in gold
-  - Distribution and partitioning (Synapse hash distribution) or clustering
-  - Materialized views and result caching
-  - Right-size or pause compute
-  - Scan less on serverless, which bills per TB (Part C §4)
+    - Pre-aggregate in gold
+    - Distribution and partitioning (Synapse hash distribution) or clustering
+    - Materialized views and result caching
+    - Right-size or pause compute
+    - Scan less on serverless, which bills per TB (Part C §4)
 
 ---
 
@@ -574,136 +576,181 @@ log.info("stage_complete", extra={"run_id": run_id, "pipeline": "pl_master_night
 ## Practice Questions
 
 1. **What's the difference between metrics and logs in Azure Monitor, and when do you use each?**
-   Metrics are lightweight numeric time series, collected automatically and near real time, and are good for detecting and alerting. Logs are detailed records in a Log Analytics workspace, queried with KQL, and are good for diagnosing the cause.
+
+    Metrics are lightweight numeric time series, collected automatically and near real time, and are good for detecting and alerting. Logs are detailed records in a Log Analytics workspace, queried with KQL, and are good for diagnosing the cause.
 
 2. **Your ADF pipeline failures don't appear in Log Analytics. Why?**
-   Resource logs aren't collected by default. You need a diagnostic setting that sends the PipelineRuns, ActivityRuns, and TriggerRuns categories to the workspace.
+
+    Resource logs aren't collected by default. You need a diagnostic setting that sends the PipelineRuns, ActivityRuns, and TriggerRuns categories to the workspace.
 
 3. **Activity log vs resource logs?**
-   The activity log records control-plane operations on resources (who created, changed, or deleted what) and is on by default. Resource logs record what happens inside a resource (e.g. each pipeline run) and need a diagnostic setting.
+
+    The activity log records control-plane operations on resources (who created, changed, or deleted what) and is on by default. Resource logs record what happens inside a resource (e.g. each pipeline run) and need a diagnostic setting.
 
 4. **Name three destinations for a diagnostic setting and one use for each.**
-   Log Analytics for querying and alerting, a storage account for cheap archiving, and Event Hubs for streaming logs to an external SIEM or tool.
+
+    Log Analytics for querying and alerting, a storage account for cheap archiving, and Event Hubs for streaming logs to an external SIEM or tool.
 
 5. **Why choose resource-specific mode over Azure diagnostics mode?**
-   It writes to dedicated tables with proper columns (`ADFActivityRun`), which are easier and cheaper to query than one wide `AzureDiagnostics` table.
+
+    It writes to dedicated tables with proper columns (`ADFActivityRun`), which are easier and cheaper to query than one wide `AzureDiagnostics` table.
 
 6. **You need ADF run history from 3 months ago. Where is it?**
-   Only in Log Analytics (or storage) if a diagnostic setting was sending it. ADF's own Monitor view keeps just 45 days.
+
+    Only in Log Analytics (or storage) if a diagnostic setting was sending it. ADF's own Monitor view keeps just 45 days.
 
 7. **Write a KQL query that counts failed pipeline runs per pipeline over the last 7 days.**
-   `ADFPipelineRun | where TimeGenerated > ago(7d) and Status == "Failed" | summarize failures = count() by PipelineName | order by failures desc`
+
+    `ADFPipelineRun | where TimeGenerated > ago(7d) and Status == "Failed" | summarize failures = count() by PipelineName | order by failures desc`
 
 8. **What is a Log Analytics table plan, and when would you use Basic?**
-   A pricing and feature tier per table. Use Basic for high-volume logs you rarely query, since ingestion is cheaper but queries are limited and billed per query.
+
+    A pricing and feature tier per table. Use Basic for high-volume logs you rarely query, since ingestion is cheaper but queries are limited and billed per query.
 
 9. ➕ **How would you make a Python ETL script send custom metrics like "rows loaded" to Azure Monitor?**
-   Instrument it with the Azure Monitor OpenTelemetry distro (Application Insights) and log or record the value as a custom property or metric.
+
+    Instrument it with the Azure Monitor OpenTelemetry distro (Application Insights) and log or record the value as a custom property or metric.
 
 10. **Name the three main types of alert rules and give a pipeline example for each.**
+
     Metric (`PipelineFailedRuns > 0`), log search (a KQL query for failed Copy activities with the error message), and activity log (someone deleted a linked service, or a Service Health incident).
 
 11. **What are the four parts of an alert rule?**
+
     Scope, condition, actions (action groups), and details (severity, name, auto-resolve).
 
 12. **What's the difference between aggregation granularity and evaluation frequency?**
+
     Granularity is the time window aggregated (e.g. the last 5 minutes). Frequency is how often the rule checks (e.g. every 1 minute).
 
 13. **Why "split by dimension" on a failed-runs metric alert?**
+
     Each pipeline then gets its own alert, so the notification says which pipeline failed.
 
 14. **What is an action group, and why is it reusable?**
+
     A named set of notifications and automated actions. Many alert rules can point to the same group, so you manage recipients in one place.
 
 15. **List four action types in an action group.**
+
     Four of: Logic App, Azure Function, webhook / secure webhook, ITSM connector, Automation runbook, Event Hub (plus email, SMS, push, and voice notifications).
 
 16. **How do you get pipeline failure alerts into a Teams channel?**
+
     Action group → Logic App (or webhook) that posts the alert payload (common alert schema) to Teams.
 
 17. **What's the ADF "try-catch gotcha", and how do you fix it?**
+
     If you handle a failure with an On-failure activity that succeeds, the pipeline can be marked Succeeded, which hides the failure from platform alerts. Add a Fail activity after the notification step.
 
 18. **Why combine platform alerts with in-pipeline failure handling?**
+
     Platform alerts (on failed pipeline runs and failed trigger runs) catch every recorded failure, including unwired pipelines. In-pipeline handling adds specific context (the step and error message).
 
 19. **You're doing maintenance Sunday 1–3 AM and don't want pages. What do you use?**
+
     An alert processing rule that suppresses notifications for that scope and time window.
 
 20. **Stateful vs stateless alerts?**
+
     Stateful alerts fire once and auto-resolve when the condition clears. Stateless alerts fire every time the condition is met.
 
 21. **The nightly pipeline "succeeded" but loaded 0 rows. How would you catch that?**
+
     Monitor business signals: a row-count or data-freshness check (e.g. max `order_ts` older than 26 hours) as a log alert or a validation step that fails the pipeline.
 
 22. **What causes alert fatigue, and how do you prevent it?**
+
     Too many non-actionable or noisy alerts. Alert only on things that need action, use severities that route correctly, and tune or remove noisy rules.
 
 23. **Does an Azure budget stop resources when reached?**
+
     No, it only alerts. To stop resources, have its action group trigger a runbook or Function.
 
 24. **Actual vs forecasted budget alerts?**
+
     Actual fires when spend has crossed the threshold. Forecasted fires when spend is projected to cross it by the end of the period, which gives earlier warning.
 
 25. **How do you show cost per team?**
+
     Tag resources (`cost-center`, `owner`), enforce or inherit the tags with Azure Policy, and group cost analysis by tag.
 
 26. **Reservation vs savings plan vs spot?**
+
     A reservation commits to a specific resource for 1 or 3 years (biggest discount). A savings plan commits to an hourly compute spend with flexibility. Spot uses spare capacity at a large discount but can be evicted.
 
 27. **Give four ways to cut Databricks cost.**
+
     Job clusters instead of all-purpose, auto-termination, autoscaling, and spot worker nodes (also cluster policies, and `availableNow` instead of always-on streams).
 
 28. **Why is Synapse serverless SQL cost sensitive to file format and query shape?**
+
     It bills per TB scanned. Parquet/Delta with partition pruning and selecting only needed columns scans much less data than CSV and `SELECT *`.
 
 29. **How do you reduce storage cost for old bronze data in ADLS?**
+
     Lifecycle management policies that move data to cool or cold by age (archive only on non-ZRS accounts) and delete it after the retention period, while watching early-deletion fees.
 
 30. **An Event Hubs namespace auto-inflated to 20 TUs during Black Friday. What's the cost risk?**
+
     Auto-inflate doesn't scale down, so you keep paying for 20 TUs until someone lowers it manually or with automation.
 
 31. **Monitoring itself is costing too much. What can you do?**
+
     Collect only the needed log categories, move noisy tables to Basic/Auxiliary, filter with DCR transformations, shorten retention, and use a commitment tier at high volume (a daily cap in dev only).
 
 32. ➕ **What are the three FinOps phases?**
+
     Inform (visibility and allocation), Optimize (remove waste, commit to discounts), and Operate (budgets, policies, regular reviews).
 
 33. ➕ **Describe the steps when the nightly load fails.**
+
     Detect (alert), triage (Service Health, then activity logs for the error), fix and rerun from the failed activity (idempotent pipelines), verify freshness and row counts, and learn (post-incident note, alert or runbook update).
 
 34. **Name the six failure zones of a medallion pipeline.**
+
     Ingestion (including CDC/streaming), bronze, transformation, silver, gold, and warehouse/marts, plus cross-cutting operations.
 
 35. **A trigger got stuck and the pipeline never ran. Why didn't the failure alert fire, and what catches it?**
+
     Nothing failed, so there was no failure event. A **heartbeat** or freshness alert on "no successful run in X hours" catches it.
 
 36. **How should an ingestion job handle an API rate limit?**
+
     Respect 429 / `Retry-After`, retry with exponential backoff and jitter, and cap concurrency. Unlimited fast retries look like a DoS attack.
 
 37. **A source adds a column. Another source renames one. How do you treat each?**
+
     Additive: accept it into bronze with schema evolution, then discuss before adding it to silver. Breaking: stop the pipeline and escalate to the source owner.
 
 38. **Why do CDC connectors send duplicates, and what are the limits of a 3-hour dedup window?**
+
     They're at-least-once and replay after a restart. The window limits state, but a duplicate that arrives more than 3 hours later gets through. An idempotent MERGE on key + version at the sink catches it.
 
 39. **How do you stop a half-written file being loaded as complete?**
+
     Use completion markers or manifests (`_SUCCESS`), write-then-rename, or Auto Loader's file tracking. Then check row counts against the expected count.
 
 40. **What audit metadata should every bronze row carry?**
+
     Ingest timestamp, source system, source file, and run/batch ID, plus a per-run audit table.
 
 41. **Why might partitioning bronze by `date/city` be a bad idea?**
+
     City may have too many distinct values, which creates many tiny files. Partition by date, plus a field with few values if needed, and compact files (or use liquid clustering).
 
 42. **List the five data quality dimensions, with one check each.**
+
     Completeness (not null, row count in range), uniqueness (unique key), validity (allowed values), consistency (totals match across layers), timeliness (ready by SLA).
 
 43. **A join suddenly doubled the row count. What happened?**
+
     The join key isn't unique on one side (fan-out). Test uniqueness before joining.
 
 44. **One Spark task runs 40 minutes while the others take 1 minute. Diagnose and fix.**
+
     Data skew on the join or group key. Enable AQE skew-join handling, broadcast the small table, or salt the hot keys.
 
 45. **A bad load corrupted `silver.orders` 3 days ago. How do you recover, and what could stop you?**
+
     `RESTORE TABLE ... TO VERSION AS OF` a version before the bad load, or replay from immutable bronze. A `VACUUM` with retention shorter than 3 days would have removed the old files needed to restore.

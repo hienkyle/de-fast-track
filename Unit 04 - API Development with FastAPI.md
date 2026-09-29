@@ -448,76 +448,101 @@ def test_invalid_price():
 ## Practice Questions
 
 1. **Which HTTP methods are idempotent, and why does it matter?**
-   GET, PUT, and DELETE (plus HEAD and OPTIONS). Clients and proxies can safely retry them after a timeout without side effects piling up.
+
+    GET, PUT, and DELETE (plus HEAD and OPTIONS). Clients and proxies can safely retry them after a timeout without side effects piling up.
 
 2. **Is DELETE still idempotent if the second call returns 404?**
-   Yes. Idempotency is about the server's **state**, not the response. The resource is gone either way.
+
+    Yes. Idempotency is about the server's **state**, not the response. The resource is gone either way.
 
 3. **PUT vs PATCH: what's the difference?**
-   PUT replaces the entire resource, so you send every field. PATCH updates only the fields you send.
+
+    PUT replaces the entire resource, so you send every field. PATCH updates only the fields you send.
 
 4. **What status code should each of these return: creating a product, deleting a product, product not found, duplicate SKU, a negative price in the body?**
-   201, 204, 404, 409, 422.
+
+    201, 204, 404, 409, 422.
 
 5. **401 vs 403?**
-   401 means the caller is not authenticated (credentials are missing or invalid). 403 means the caller is authenticated but not allowed to do this.
+
+    401 means the caller is not authenticated (credentials are missing or invalid). 403 means the caller is authenticated but not allowed to do this.
 
 6. **What does "stateless" mean in REST, and what does it make easier?**
-   The server stores no client session between requests, because each request carries its own context (e.g., the token). This makes horizontal scaling and load balancing easy.
+
+    The server stores no client session between requests, because each request carries its own context (e.g., the token). This makes horizontal scaling and load balancing easy.
 
 7. **Rewrite these endpoints RESTfully: `GET /getAllOrders`, `POST /deleteProduct?id=5`, `GET /orders?userId=5`.**
-   `GET /orders`, `DELETE /products/5`, and `GET /users/5/orders` (or `GET /orders?user_id=5`).
+
+    `GET /orders`, `DELETE /products/5`, and `GET /users/5/orders` (or `GET /orders?user_id=5`).
 
 8. **How does FastAPI decide whether a parameter comes from the path, the query string, or the body?**
-   A name in the path template comes from the path. A simple type that isn't in the path comes from the query string. A Pydantic model comes from the JSON body.
+
+    A name in the path template comes from the path. A simple type that isn't in the path comes from the query string. A Pydantic model comes from the JSON body.
 
 9. **What does `response_model` do besides documenting the response?**
-   It validates the output and **filters out** fields that aren't in the schema, which prevents leaks like `password_hash`.
+
+    It validates the output and **filters out** fields that aren't in the schema, which prevents leaks like `password_hash`.
 
 10. **Why have separate `ProductCreate`, `ProductUpdate`, and `ProductRead` schemas?**
+
     Create has no `id` because the DB generates it. Update has all-optional fields for PATCH. Read includes `id` and leaves out secrets. Each direction has a different contract.
 
 11. **Why use `model_dump(exclude_unset=True)` in a PATCH handler?**
+
     So that fields the client didn't send aren't overwritten with defaults or `None`. Only the fields that were actually sent get updated.
 
 12. **Write a Pydantic field that only accepts a `quantity` from 1 to 100.**
+
     `quantity: int = Field(ge=1, le=100)`.
 
 13. **What happens when a request body fails Pydantic validation in FastAPI?**
+
     FastAPI returns 422 automatically, with a `detail` list that gives each error's location (`loc`), message, and input. Your endpoint code never runs.
 
 14. **Why use `Decimal` rather than `float` for prices?**
+
     Floats are binary approximations (0.1 + 0.2 ≠ 0.3), so rounding errors creep into money. `Decimal` maps exactly to SQL `NUMERIC`.
 
 15. **What does `from_attributes=True` enable?**
+
     Building a Pydantic model from an object's attributes, such as a SQLAlchemy row, instead of only from a dict.
 
 16. **Where does `database.py` get the database URL, and why?**
+
     From the settings class (`settings.database_url`), which loads it from the environment or a `.env` file. Credentials stay out of the code and out of Git, and each environment (dev, test, prod) can use a different database.
 
 17. **Why does `get_db` use `yield` and `finally`?**
+
     The session is created before the endpoint runs and is **always closed afterward**, even when there is an error, so the connection goes back to the pool.
 
 18. **Why one session per request, not one global session?**
+
     Sessions aren't thread-safe, and a single shared session would mix different users' transactions and state together.
 
 19. **What's the purpose of the engine's connection pool?**
+
     Opening DB connections is expensive. The pool keeps some connections open and reuses them across requests.
 
 20. **A duplicate SKU insert crashes with a 500. How do you fix it?**
+
     Catch `IntegrityError`, call `db.rollback()`, and raise `HTTPException(409, "SKU already exists")`.
 
 21. **How do you make "create order + items + reserve stock" all-or-nothing?**
+
     Wrap it in one transaction (`with db.begin():`) so that any exception rolls everything back. Use a conditional `UPDATE ... SET qty_reserved = qty_reserved + :qty WHERE qty_on_hand - qty_reserved >= :qty` and check `rowcount` so stock can't be oversold.
 
 22. **Listing 50 orders triggers 51 SQL queries. What is this called, and how do you fix it?**
+
     The N+1 problem. Load the relationship up front: `select(Order).options(selectinload(Order.items))`.
 
 23. **When should an endpoint be `def` instead of `async def`?**
+
     When it calls blocking code, such as sync SQLAlchemy or `requests`. FastAPI runs `def` endpoints in a thread pool, while blocking code inside `async def` freezes the event loop for every request.
 
 24. **Why use Alembic instead of `Base.metadata.create_all()`?**
+
     `create_all` only creates tables that are missing. It can't change existing tables or keep a history of changes. Alembic keeps versioned, reversible migrations that you can apply in every environment.
 
 25. **How do you test endpoints without touching the real database?**
+
     Use `TestClient` with `app.dependency_overrides[get_db] = get_test_db` to swap in a test database.

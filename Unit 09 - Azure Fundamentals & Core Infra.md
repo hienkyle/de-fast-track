@@ -688,121 +688,161 @@ The whole unit in one picture: **governance** comes down the hierarchy, **identi
 ## Practice Questions
 
 1. **Explain CapEx vs OpEx, and why cloud suits a nightly Spark job.**
-   CapEx is up-front hardware spending; OpEx is paying for usage over time. A nightly job only pays for the hours it runs instead of for a server that sits idle most of the day.
+
+    CapEx is up-front hardware spending; OpEx is paying for usage over time. A nightly job only pays for the hours it runs instead of for a server that sits idle most of the day.
 
 2. **What's the difference between scalability and elasticity? Vertical vs horizontal scaling?**
-   Scalability is the ability to handle more load. Elasticity is scaling up and down automatically with demand. Vertical = a bigger machine; horizontal = more machines.
+
+    Scalability is the ability to handle more load. Elasticity is scaling up and down automatically with demand. Vertical = a bigger machine; horizontal = more machines.
 
 3. **A VM (99.9%) depends on Azure SQL (99.99%). What's the composite SLA?**
-   0.999 × 0.9999 ≈ 99.89%.
+
+    0.999 × 0.9999 ≈ 99.89%.
 
 4. **Classify: a VM running Airflow, Azure SQL Database, Power BI service, Azure Functions.**
-   IaaS, PaaS, SaaS, PaaS (serverless).
+
+    IaaS, PaaS, SaaS, PaaS (serverless).
 
 5. **In the shared responsibility model, what is always the customer's responsibility?**
-   Their data, accounts/identities, and the devices that access them.
+
+    Their data, accounts/identities, and the devices that access them.
 
 6. **Who patches the OS for a VM? For Azure SQL Database?**
-   VM (IaaS): the customer. Azure SQL (PaaS): Microsoft.
+
+    VM (IaaS): the customer. Azure SQL (PaaS): Microsoft.
 
 7. **What's an availability zone, and what failure does it protect against? What about a region pair?**
-   A physically separate location in a region with independent power, cooling and networking. It protects against a datacenter failure. A region pair protects against an entire region going down.
+
+    A physically separate location in a region with independent power, cooling and networking. It protects against a datacenter failure. A region pair protects against an entire region going down.
 
 8. **Name four factors when choosing a region.**
-   Latency to users and data, compliance/data residency, whether the service is available there, price, zone and pair support.
+
+    Latency to users and data, compliance/data residency, whether the service is available there, price, zone and pair support.
 
 9. **Draw the Azure management hierarchy from tenant to resource.**
-   Entra tenant → root management group → management groups → subscriptions → resource groups → resources.
+
+    Entra tenant → root management group → management groups → subscriptions → resource groups → resources.
 
 10. **Give four rules about resource groups.**
+
     A resource is in exactly one RG. RGs can't be nested. Deleting an RG deletes everything in it. The RG's location only stores metadata, so its resources can be in other regions.
 
 11. **What two boundaries does a subscription provide? Why use separate dev and prod subscriptions?**
+
     Billing and access control. It isolates costs and restricts who can touch production.
 
 12. **What's the difference between Azure Policy and RBAC?**
+
     RBAC controls what a principal can do. Policy controls what properties resources are allowed to have, no matter who creates them.
 
 13. **An Owner tries to delete a resource group with a `CanNotDelete` lock. What happens?**
+
     The deletion fails. Locks override RBAC, so the lock has to be removed first.
 
 14. **Are tags inherited from a resource group by its resources?**
+
     Not by default. You can use Azure Policy to inherit or require them.
 
 15. **What does ADLS Gen2 add to Blob Storage, and why does it matter for a data lake?**
+
     A hierarchical namespace: real directories (fast renames/moves, which Spark and Delta rely on) and POSIX-style ACLs for folder-level security.
 
 16. **Compare LRS, ZRS, GRS and GZRS.**
+
     LRS: 3 copies in one datacenter. ZRS: 3 copies across zones. GRS: LRS plus an async copy in the paired region. GZRS: ZRS plus a copy in the paired region. RA- versions allow reading from the secondary.
 
 17. **What's the difference between authentication and authorization, and which Azure service handles each?**
+
     Authentication proves who you are (Entra ID). Authorization decides what you can do (Azure RBAC for resources).
 
 18. **What is Microsoft Entra ID, and what was it called before?**
+
     Microsoft's cloud identity and access management service; formerly Azure Active Directory.
 
 19. **Why prefer a managed identity over a service principal with a client secret?**
+
     There are no secrets to store, leak or rotate. Azure issues the tokens automatically.
 
 20. **System-assigned vs user-assigned managed identity?**
+
     System-assigned is tied to one resource and is deleted with it. User-assigned is a standalone resource that can be shared by many resources.
 
 21. **What does Conditional Access do? Give an example.**
+
     It applies if-then policies at sign-in, e.g. if a user signs in from outside Vietnam on an unmanaged device, require MFA or block access.
 
 22. **What are the three parts of an RBAC role assignment?**
+
     Security principal (who), role definition (what), scope (where).
 
 23. **Hien has Reader on the subscription and Contributor on `rg-ecom-data-dev-sea`. What can she do in that RG?**
+
     Contributor actions. RBAC is additive, so effective permissions are the union of her assignments.
 
 24. **What's the difference between Owner and Contributor?**
+
     Both manage all resources, but only Owner can grant access to others.
 
 25. **A pipeline's identity has Contributor on the storage account but gets "403 AuthorizationPermissionMismatch" reading blobs with Entra auth. Why, and how do you fix it?**
+
     Contributor is a control-plane role. Reading data needs a data-plane role, e.g. Storage Blob Data Reader/Contributor at the account or container scope.
 
 26. **Global Administrator vs Owner?**
+
     Global Administrator is an Entra role that manages the directory. Owner is an Azure RBAC role that manages resources. One doesn't automatically include the other.
 
 27. **Explain least privilege and give a data-platform example.**
+
     Grant the minimum role at the narrowest scope. Analysts get read access only to the `gold` data they need (e.g. ACL read on `gold/sales/`), not Contributor on the subscription.
 
 28. **What is a VNet's scope?**
+
     One region and one subscription. It spans all availability zones in that region.
 
 29. **How many usable IPs are in a `/24` subnet and a `/28` subnet in Azure? Why?**
+
     251 and 11. Azure reserves 5 addresses per subnet: network, gateway, two for DNS, broadcast.
 
 30. **Why must VNet address spaces not overlap with on-prem or other VNets?**
+
     Overlapping ranges can't be peered or connected by VPN/ExpressRoute, because routing would be ambiguous.
 
 31. **How are NSG rules evaluated?**
+
     By priority, lowest number first. Processing stops at the first matching rule.
 
 32. **Rule 200 allows TCP 443 from Internet; rule 150 denies all inbound from Internet. Is HTTPS allowed?**
+
     No. Rule 150 is checked first and matches, so the traffic is denied.
 
 33. **What does "NSGs are stateful" mean?**
+
     Response traffic for an allowed connection is automatically allowed back, so you don't need a matching rule in the other direction.
 
 34. **List the default inbound NSG rules and the resulting behavior.**
+
     AllowVNetInBound (65000), AllowAzureLoadBalancerInBound (65001), DenyAllInBound (65500). Traffic inside the VNet is allowed, and everything from the internet is blocked.
 
 35. **An NSG on the subnet allows port 22, and an NSG on the VM's NIC doesn't. Can you SSH in?**
+
     No. When both exist, inbound traffic must be allowed by both the subnet NSG and the NIC NSG.
 
 36. **What's a service tag? Give two examples.**
+
     A Microsoft-managed name for a set of IP ranges, used in rules instead of IPs: `Internet`, `VirtualNetwork`, `Storage.SoutheastAsia`, `AzureLoadBalancer`.
 
 37. ➕ **VNets A↔B and B↔C are peered. Can A reach C?**
+
     No. Peering isn't transitive. Peer A and C directly or route through a hub firewall.
 
 38. ➕ **Service endpoint vs private endpoint: which lets you fully disable the storage account's public endpoint and reach it from on-prem?**
+
     A private endpoint. It gives the service a private IP in your VNet.
 
 39. ➕ **How would you let admins reach a VM without a public IP or opening port 22 to the internet?**
+
     Azure Bastion (browser-based SSH/RDP), with the NSG allowing SSH only from the Bastion subnet.
 
 40. ➕ **Design the access model for the lake: ADF (the ingestion service) writes Bronze, Databricks (managed Spark) writes Silver/Gold (and its own Bronze tables), analysts read Gold.**
+
     Give each service a managed identity and the narrowest data-plane role. ADF's identity: Storage Blob Data Contributor on the `bronze` container. Databricks' identity: Blob Data Contributor on `bronze`, `silver` and `gold` (it reads raw data, and its Auto Loader and streaming jobs in Units 11–12 also write Bronze tables). Analysts' group: ACL read on the `gold` folders they need, not a container-wide data role, which would override the folder ACLs (Unit 10). Then disable shared-key access so every request goes through RBAC, reach the lake through a private endpoint, and keep external API keys in Key Vault.

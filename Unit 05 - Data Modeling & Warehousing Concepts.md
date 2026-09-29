@@ -359,9 +359,9 @@ JOIN gold.dim_customer c
 
 - To report by **current** attributes, filter `WHERE is_current`, or join on the natural key to the current row.
 - **Conventions:**
-  - Use a far-future `valid_to` (`9999-12-31`) instead of NULL, so range filters are simple.
-  - Allow exactly **one `is_current = TRUE` row per business key**.
-  - Compare a **hash of the tracked columns** (`row_hash`) to detect changes cheaply.
+    - Use a far-future `valid_to` (`9999-12-31`) instead of NULL, so range filters are simple.
+    - Allow exactly **one `is_current = TRUE` row per business key**.
+    - Compare a **hash of the tracked columns** (`row_hash`) to detect changes cheaply.
 
 ### 4. SCD Type 2 with `MERGE` (Snowflake)
 
@@ -503,79 +503,105 @@ The line between the categories is blurring. Warehouses like Snowflake can query
 ## Practice Questions
 
 1. **Give three differences between OLTP and OLAP workloads.**
-   OLTP runs many small key-based reads and writes on a normalized schema with millisecond latency. OLAP runs few large scans with aggregates and joins on a denormalized schema, and each query takes seconds to minutes.
+
+    OLTP runs many small key-based reads and writes on a normalized schema with millisecond latency. OLAP runs few large scans with aggregates and joins on a denormalized schema, and each query takes seconds to minutes.
 
 2. **An analyst's report on the production database at 9 a.m. causes checkout failures. Explain why, and propose a fix.**
-   The heavy query competes with app transactions for CPU, I/O, and memory, and holds locks or snapshots for a long time. App transactions wait, time out, and fail. Fix: move analytics to a data warehouse loaded by an ETL/ELT pipeline, or at least use a read replica.
+
+    The heavy query competes with app transactions for CPU, I/O, and memory, and holds locks or snapshots for a long time. App transactions wait, time out, and fail. Fix: move analytics to a data warehouse loaded by an ETL/ELT pipeline, or at least use a read replica.
 
 3. **Why is columnar storage faster for `SELECT city, SUM(amount) FROM orders GROUP BY city`?**
-   It reads only the `city` and `amount` columns, not every column of every row. Those columns also compress well, so even less data comes off disk.
+
+    It reads only the `city` and `amount` columns, not every column of every row. Those columns also compress well, so even less data comes off disk.
 
 4. **Why is columnar storage a bad fit for an app that inserts one order at a time?**
-   A single-row insert has to write to every column's storage separately. Row storage writes the whole record in one place.
+
+    A single-row insert has to write to every column's storage separately. Row storage writes the whole record in one place.
 
 5. **Encode `abc, xyz, abc, abc, xyz, xyz` with dictionary encoding.**
-   Dictionary `1 → abc, 2 → xyz`. Stored as `1, 2, 1, 1, 2, 2`.
+
+    Dictionary `1 → abc, 2 → xyz`. Stored as `1, 2, 1, 1, 2, 2`.
 
 6. **Encode `HN, HN, HCM, HCM, HCM, DN` with RLE. What makes RLE more effective?**
-   `(HN, 2), (HCM, 3), (DN, 1)`. Sorting or clustering the data so identical values sit next to each other.
+
+    `(HN, 2), (HCM, 3), (DN, 1)`. Sorting or clustering the data so identical values sit next to each other.
 
 7. **Explain how MPP runs a `GROUP BY` aggregate.**
-   The data is partitioned across nodes. Each node aggregates its own partition in parallel, and the coordinator merges the partial aggregates into the final result.
+
+    The data is partitioned across nodes. Each node aggregates its own partition in parallel, and the coordinator merges the partial aggregates into the final result.
 
 8. **What are the benefits of decoupling compute and storage?**
-   Storage stays cheap. Compute scales and is paid for independently (per second, turned off when idle). Several teams can use separate warehouses on the same data without competing for resources.
+
+    Storage stays cheap. Compute scales and is paid for independently (per second, turned off when idle). Several teams can use separate warehouses on the same data without competing for resources.
 
 9. **Name Snowflake's three layers and one responsibility of each.**
-   Storage: micro-partitions in object storage. Compute: virtual warehouses that run queries. Cloud services: optimization, metadata, security, and the result cache.
+
+    Storage: micro-partitions in object storage. Compute: virtual warehouses that run queries. Cloud services: optimization, metadata, security, and the result cache.
 
 10. **Why doesn't Snowflake need you to create indexes?**
+
     It stores min/max metadata for every column in every micro-partition and prunes the partitions a query doesn't need. Columnar scans plus pruning replace indexes.
 
 11. **ETL vs ELT: where does the transformation happen, and why did ELT become popular?**
+
     ETL transforms on a separate engine before loading. ELT loads raw data and transforms it inside the warehouse. Cloud warehouses made storage cheap and compute elastic, and keeping raw data makes it easy to reprocess.
 
 12. **When would you still choose ETL?**
+
     When sensitive data must be masked or removed before it reaches the warehouse (compliance), or when the transformation needs heavy non-SQL processing.
 
 13. **Describe Bronze, Silver, and Gold. Where does deduplication happen? Where do fact tables live?**
+
     Bronze is an untransformed raw copy with load metadata. Silver is cleaned and conformed: deduplication, type parsing, null handling, light flattening. Gold holds the star schema for BI and ML. Deduplication happens in Silver, and facts and dimensions live in Gold.
 
 14. **Why keep Bronze data unchanged?**
+
     So Silver and Gold can be rebuilt at any time after a bug fix or a logic change, and so there's an audit trail of exactly what the source sent.
 
 15. **What are the four steps of dimensional design? Which comes first after choosing the process?**
+
     Choose the business process, declare the grain, identify the dimensions, identify the facts. Declaring the grain comes right after choosing the process.
 
 16. **Declare the grain of `fact_sales` for the e-commerce schema, and list its dimensions and measures.**
+
     One row per order line item. Dimensions: date, customer, product, location. Degenerate dimension: `order_id`. Measures: quantity, unit_price, gross_amount, discount_amount.
 
 17. **Star vs snowflake schema: which is the usual default for BI, and why?**
+
     Star. It needs fewer joins, it's faster, and it's easier for analysts to understand. In a columnar warehouse, the extra storage from denormalizing is small because repeated values compress well.
 
 18. **Classify each measure: `gross_amount`, `account_balance`, `conversion_rate`.**
+
     Additive, semi-additive (don't sum across time), non-additive (store the numerator and denominator instead).
 
 19. **Which fact table type fits order fulfillment tracked through ordered → paid → shipped → delivered?**
+
     An accumulating snapshot: one row per order, updated as each milestone date is filled in.
 
 20. **Why use surrogate keys instead of natural keys in dimensions?**
+
     They separate the warehouse from source-system key changes and collisions across sources, they make SCD Type 2 possible (one business key can have several versions), and integer joins are fast.
 
 21. **What are role-playing and degenerate dimensions? Give an example of each.**
+
     Role-playing: one dimension used in several roles, e.g., `dim_date` as order date and as ship date. Degenerate: a dimension key with no dimension table, e.g., `order_id` stored in `fact_sales`.
 
 22. **A customer moves from HN to HCM. Describe the result under SCD Types 0, 1, 2, and 3.**
+
     Type 0: stays HN. Type 1: overwritten to HCM, no history. Type 2: the old row is closed and a new current HCM row is added with its own surrogate key. Type 3: `city = HCM`, `previous_city = HN`.
 
 23. **With SCD Type 2, how do past sales keep reporting under the old city?**
+
     Each fact row stores the surrogate key of the dimension version that was valid when the sale happened. Sales before the move point to the HN row.
 
 24. **Why does a single SCD Type 2 `MERGE` send changed rows through twice?**
+
     A changed customer needs both an UPDATE (expire the old row) and an INSERT (the new version), but one source row can only match once. The copy with a NULL key never matches, so it goes to the INSERT branch.
 
 25. **Data lake vs data warehouse vs lakehouse: what does a lakehouse add to a lake?**
+
     An open table format (Delta, Iceberg, or Hudi) that adds ACID transactions, `UPDATE`/`MERGE`, schema enforcement and evolution, time travel, and statistics for pruning. That gives warehouse-style reliability and performance on cheap lake storage.
 
 26. **What is a data swamp, and how do you prevent one?**
+
     A lake full of undocumented, poor-quality, ungoverned data that nobody trusts. Prevent it with a data catalog, clear ownership, quality checks, layered zones (medallion), and access control.

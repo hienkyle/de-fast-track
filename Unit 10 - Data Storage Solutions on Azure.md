@@ -680,130 +680,173 @@ Unit 5 taught **normalization** for OLTP. Cosmos DB flips this: **model around h
 ## Practice Questions
 
 1. **What's the difference between a storage account, a container and a blob?**
-   The account is the top-level resource with the endpoint, redundancy and settings. A container groups blobs. A blob is the object (file) itself.
+
+    The account is the top-level resource with the endpoint, redundancy and settings. A container groups blobs. A blob is the object (file) itself.
 
 2. **In a flat-namespace Blob account, what is `orders/2026/09/`?**
-   Just a name prefix. Folders don't really exist, so renaming one means copying and deleting every blob under it.
+
+    Just a name prefix. Folders don't really exist, so renaming one means copying and deleting every blob under it.
 
 3. **Which blob type would you use for Parquet files? For an application log?**
-   Block blob. Append blob.
+
+    Block blob. Append blob.
 
 4. **A Cool-tier blob is deleted after 10 days. What happens to cost?**
-   An early deletion fee is charged for the remaining 20 days of the 30-day minimum.
+
+    An early deletion fee is charged for the remaining 20 days of the 30-day minimum.
 
 5. **An analyst needs a file from Archive in 30 minutes. Is that possible?**
-   Only with high-priority rehydration, which is usually under an hour for smaller objects. Standard priority can take up to 15 hours. Plan tiers so urgent data isn't archived.
+
+    Only with high-priority rehydration, which is usually under an hour for smaller objects. Standard priority can take up to 15 hours. Plan tiers so urgent data isn't archived.
 
 6. **Your lake is ZRS. Can a lifecycle rule move Bronze to Archive?**
-   No. Archive isn't supported on ZRS/GZRS/RA-GZRS. Use Cold, or keep an archive copy in an LRS/GRS account.
+
+    No. Archive isn't supported on ZRS/GZRS/RA-GZRS. Use Cold, or keep an archive copy in an LRS/GRS account.
 
 7. **Rank these by preference: account key, user delegation SAS, Entra ID + RBAC, service SAS.**
-   Entra ID + RBAC, then user delegation SAS, then service SAS, then account key.
+
+    Entra ID + RBAC, then user delegation SAS, then service SAS, then account key.
 
 8. **Why is a user delegation SAS safer than a service SAS?**
-   It's signed with Entra credentials instead of the account key, respects the signer's permissions, and can be revoked without rotating the account keys.
+
+    It's signed with Entra credentials instead of the account key, respects the signer's permissions, and can be revoked without rotating the account keys.
 
 9. **Name three features that protect lake data from accidental deletes or overwrites.**
-   Soft delete (blobs and containers), blob versioning, point-in-time restore, and immutable storage for compliance.
+
+    Soft delete (blobs and containers), blob versioning, point-in-time restore, and immutable storage for compliance.
 
 10. **What does ADLS Gen2 add to Blob Storage, and how do you get it?**
+
     A hierarchical namespace: real directories, atomic renames, and POSIX ACLs. You enable HNS on a StorageV2 account at creation, or upgrade an existing account (one-way).
 
 11. **Why do Spark and Delta Lake benefit from HNS?**
+
     Their job commits rename output folders. With HNS a rename is one atomic metadata operation. On a flat namespace it's many copies and deletes: slow, and not atomic.
 
 12. **Write the ABFS path for the `orders` folder in the `silver` container of `stecomlakeprod`.**
+
     `abfss://silver@stecomlakeprod.dfs.core.windows.net/orders/`
 
 13. **A user has Storage Blob Data Reader on the `gold` container, and the ACL on `gold/finance/` denies them. Can they read `gold/finance/`?**
+
     Yes. RBAC is evaluated first, and because it grants access, ACLs aren't checked. To limit them to certain folders, remove the container-level role and use ACLs only.
 
 14. **What ACL permissions are needed to read `gold/sales/2026/part-0001.parquet`?**
+
     Execute (x) on the container root, `sales` and `2026`, plus read (r) on the file.
 
 15. **You set a default ACL on `gold/finance/` but existing files are still inaccessible to the new group. Why?**
+
     Default ACLs only apply to items created afterwards. Apply the ACL recursively to existing items.
 
 16. **Why assign ACLs to groups rather than users?**
+
     Each item has at most 32 ACL entries. Group membership changes don't require touching millions of ACLs.
 
 17. **What is the small-file problem, and how do you fix it?**
+
     Many tiny files slow listing and Spark tasks and increase transaction costs. Compact them into larger files (for example with Delta `OPTIMIZE`) and avoid over-partitioning.
 
 18. **Spark reaches the lake through the blob private endpoint but fails on `abfss://`. Likely cause?**
+
     There's no private endpoint (and private DNS zone) for the `dfs` endpoint. ADLS needs both blob and dfs.
 
 19. **Compare Azure SQL Database, SQL Managed Instance, and SQL Server on a VM.**
+
     Single-database PaaS for new apps / full-instance PaaS with near-100% compatibility for lift-and-shift / IaaS with full OS control.
 
 20. **When would you use an elastic pool?**
+
     For many databases with varying, non-overlapping peaks (like one DB per SaaS tenant), so they share resources more cheaply.
 
 21. **DTU vs vCore?**
+
     DTU bundles CPU, memory and I/O into one measure with simple tiers. vCore lets you choose compute and storage independently, and supports Hybrid Benefit and reservations.
 
 22. **Which Azure SQL tier for a 40 TB database? For the lowest-latency OLTP?**
+
     Hyperscale (up to 128 TB). Business Critical (local SSD, replicas).
 
 23. **What does serverless compute give you, and what's the downside?**
+
     Autoscaling, per-second billing, and auto-pause when idle. The downside is a cold-start delay on the first connection after a pause.
 
 24. **Someone dropped a table at 14:05. How do you recover in Azure SQL Database?**
+
     Point-in-time restore to 14:04 as a new database (within the 1–35 day retention), then copy the table back.
 
 25. **Active geo-replication vs failover groups?**
+
     Geo-replication creates readable secondaries per database. Failover groups fail over a set of databases together and provide stable listener endpoints so connection strings don't change.
 
 26. **Which PostgreSQL Flexible Server tier can't use high availability?**
+
     Burstable.
 
 27. **Public access vs private access networking in PostgreSQL Flexible Server?**
+
     Public access uses a public endpoint with firewall rules (private endpoints can be added). Private access deploys the server into a delegated VNet subnet with no public endpoint.
 
 28. **How do you enable `pgvector` on Flexible Server?**
+
     Add `vector` to the `azure.extensions` server parameter allow-list, then run `CREATE EXTENSION vector;`.
 
 29. **Why shouldn't the BI team query the production orders database directly?**
+
     It's an OLTP system, and heavy analytical queries would slow transactions. Use a read replica or extract the data into the lake/warehouse.
 
 30. **What's a partition key, and what makes a good one?**
+
     The property Cosmos uses to distribute items. A good one has high cardinality, spreads storage and requests evenly, and appears in most query filters.
 
 31. **Why is `/orderDate` a poor partition key for an orders container?**
+
     All of today's writes land in one logical partition, creating a hot partition that throttles.
 
 32. **Logical vs physical partition limits?**
+
     Logical: all items with one key value, max 20 GB. Physical: managed by Cosmos, up to 10,000 RU/s and 50 GB each.
 
 33. **What is a Request Unit? What's the cheapest operation?**
+
     A normalized measure of throughput cost. A point read of a 1 KB item by id + partition key costs 1 RU.
 
 34. **Your app gets HTTP 429 from Cosmos DB. What does it mean, and what can you do?**
+
     The request rate exceeded the provisioned RU/s. The SDK retries after `retry-after`. Longer term: raise RU/s or use autoscale, fix hot partitions, trim the indexing policy, and use point reads instead of queries.
 
 35. **Manual vs autoscale vs serverless throughput?**
+
     Fixed RU/s for steady load / scales from 10% to 100% of a max for variable load / pay per RU for dev or spiky low traffic.
 
 36. **List the five consistency levels from strongest to weakest. Which is the default?**
+
     Strong, Bounded staleness, Session, Consistent prefix, Eventual. Session is the default.
 
 37. **Which consistency level fits a shopping cart, and why?**
+
     Session. The user always sees their own changes, with lower latency and cost than Strong.
 
 38. **Can you use Strong consistency with multi-region writes?**
+
     No.
 
 39. **What is the change feed used for? What doesn't it capture by default?**
+
     Event-driven processing: syncing to the lake, updating materialized views, triggering Functions. In latest-version mode it doesn't capture deletes, so use soft deletes + TTL or the all-versions-and-deletes mode.
 
 40. **Embed or reference: a product's 3 images? A product's reviews?**
+
     Embed the images (few, read together). Reference the reviews (unbounded, could exceed the 2 MB item limit).
 
 41. **Can a Cosmos DB transaction span two partition key values?**
+
     No. Transactions (stored procedures, transactional batch) are limited to one logical partition.
 
 42. ➕ **Choose a store for each: order payments, product catalog, clickstream files, invoice PDFs, cleaned sales tables.**
+
     PostgreSQL/Azure SQL · Cosmos DB · ADLS Gen2 bronze · Blob Storage · ADLS Gen2 silver/gold (Delta).
 
 43. ➕ **Design secure access for the new stores in the e-commerce platform.**
+
     Give each workload a managed identity. FastAPI's identity gets an Entra database user in PostgreSQL (read/write on the `sales` schema) and *Cosmos DB Built-in Data Contributor* on the `carts` and `products` containers. ADF gets Blob Data Contributor on `bronze`. The finance group gets ACL read on `gold/finance/` only. Disable password/key auth where possible, use private endpoints (blob + dfs for the lake) and private access for Postgres, and keep any remaining secrets in Key Vault.

@@ -549,115 +549,153 @@ The one line that wires it together:
 ## Practice Questions
 
 1. **What does Airflow do, and what shouldn't it do?**
-   It schedules and orchestrates batch workflows defined in Python, with retries, dependencies and monitoring. It shouldn't do heavy data processing itself or run streaming. It should trigger Spark, ADF, SQL or dbt.
+
+    It schedules and orchestrates batch workflows defined in Python, with retries, dependencies and monitoring. It shouldn't do heavy data processing itself or run streaming. It should trigger Spark, ADF, SQL or dbt.
 
 2. **Airflow vs ADF: give two strengths of each.**
-   Airflow: code-based pipelines (Git, tests, dynamic generation) and orchestration across any system or cloud. ADF: serverless with no ops work, and a built-in Copy activity with connectors and a SHIR for on-prem sources.
+
+    Airflow: code-based pipelines (Git, tests, dynamic generation) and orchestration across any system or cloud. ADF: serverless with no ops work, and a built-in Copy activity with connectors and a SHIR for on-prem sources.
 
 3. **Operator vs task vs task instance?**
-   An operator is a template class. A task is an operator instance with arguments inside a DAG. A task instance is one execution of that task in a specific DAG run.
+
+    An operator is a template class. A task is an operator instance with arguments inside a DAG. A task instance is one execution of that task in a specific DAG run.
 
 4. **Name the Airflow 3 components and one job of each.**
-   Scheduler: creates runs and queues ready tasks. Executor: decides where tasks run. Workers: run task code. DAG processor: parses DAG files. API server: UI, REST API and task communication. Triggerer: async waits for deferred tasks. Metadata DB: stores all state.
+
+    Scheduler: creates runs and queues ready tasks. Executor: decides where tasks run. Workers: run task code. DAG processor: parses DAG files. API server: UI, REST API and task communication. Triggerer: async waits for deferred tasks. Metadata DB: stores all state.
 
 5. **Which executor for: (a) one VM, (b) several worker VMs, (c) AKS with per-task resources?**
-   (a) Local, (b) Celery, (c) Kubernetes.
+
+    (a) Local, (b) Celery, (c) Kubernetes.
 
 6. **Why use PostgreSQL rather than SQLite as the metadata DB in production?**
-   SQLite doesn't support concurrent access, so it can't run tasks in parallel. PostgreSQL handles many concurrent connections and, as a managed service, gives backups and survives VM loss.
+
+    SQLite doesn't support concurrent access, so it can't run tasks in parallel. PostgreSQL handles many concurrent connections and, as a managed service, gives backups and survives VM loss.
 
 7. **A daily DAG has `start_date=2026-09-01` and an interval-based schedule. When does the run for 2026-09-01 start, and why?**
-   Right after 2026-09-02 00:00. It processes the full interval 09-01 → 09-02, and that interval has to finish first.
+
+    Right after 2026-09-02 00:00. It processes the full interval 09-01 → 09-02, and that interval has to finish first.
 
 8. **Why is `start_date=now()` a bad idea?**
-   The start date moves on every parse, so the scheduler may never find an interval to run. Use a fixed date.
+
+    The start date moves on every parse, so the scheduler may never find an interval to run. Use a fixed date.
 
 9. **What does catchup do? What's the default in Airflow 3?**
-   It creates runs for every missed interval since `start_date`. It's off by default in Airflow 3 (on in Airflow 2).
+
+    It creates runs for every missed interval since `start_date`. It's off by default in Airflow 3 (on in Airflow 2).
 
 10. **What makes a backfill of last month safe?**
+
     Tasks are idempotent and process only their own window (`ds` / data interval), using MERGE or overwrite-by-partition.
 
 11. **What does `max_active_runs=1` protect against?**
+
     Two runs of the same DAG overlapping, e.g. a slow run still loading when the next one starts, or backfill days running out of order.
 
 12. **You want at most 3 tasks across all DAGs querying the production Postgres at once. How?**
+
     Create a pool with 3 slots and assign those tasks to it.
 
 13. **A cleanup task must run whether upstream tasks succeed or fail. Which trigger rule?**
+
     `all_done`.
 
 14. **After branching, the join task never runs. Why, and how do you fix it?**
+
     With the default `all_success`, the skipped branch makes the join skip too. Use `none_failed_min_one_success`.
 
 15. **Why shouldn't a task return a 2 GB DataFrame?**
+
     XCom stores values in the metadata DB and is meant for small values. Write the data to ADLS and return the path (or use an object-storage XCom backend).
 
 16. **Where can Airflow read a connection from, and in what order?**
+
     The secrets backend (e.g. Key Vault), then environment variables, then the metadata DB.
 
 17. **What do `{{ ds_nodash }}` and `{{ data_interval_start }}` give you?**
+
     The run's logical date without dashes (`20260924`), and the start of the run's data window.
 
 18. **Dynamic task mapping vs DAG factory?**
+
     Mapping creates task copies at run time from upstream output, all inside one DAG run. A factory creates separate DAGs at parse time from a config file.
 
 19. **How would you rebuild ADF's Lookup → ForEach → Copy pattern in Airflow?**
+
     A task that reads the control table and returns a list, then `.expand()` over that list with a copy task, with a per-task parallelism limit.
 
 20. **Your DAG file queries the source database at the top level to list tables. What goes wrong?**
+
     The file is re-parsed about every 30 seconds, so the query runs constantly, slows parsing and loads the source. Move it into a task (with mapping) or into a config file.
 
 21. **What are Assets, and what problem do they solve?**
+
     URI labels for data that producer tasks mark as updated (`outlets`). Consumer DAGs scheduled on those assets run after the update. This replaces guessing with time schedules and splits big DAGs into smaller ones linked by data.
 
 22. **Does Airflow check that an asset's files actually changed?**
+
     No. It only records that the producing task succeeded.
 
 23. **A sensor waits up to 6 hours for a file. Why use reschedule mode or a deferrable operator?**
+
     In poke mode the sensor holds a worker slot the whole time. Reschedule frees the slot between checks. Deferrable moves the wait to the triggerer, using no worker at all.
 
 24. **What does `soft_fail` do on a sensor that times out?**
+
     The sensor is marked skipped instead of failed.
 
 25. **Describe a secure Airflow setup on an Azure VM.**
+
     A VM in a private subnet with a managed identity. The metadata DB on PostgreSQL flexible server with a private endpoint. Components run as auto-restarting services. Admin access through Bastion and no public UI (or App Gateway with Entra sign-in). Key Vault as the secrets backend. Remote logs in Blob. An NSG blocking inbound traffic from the internet.
 
 26. **Why install Airflow with a constraints file?**
+
     Airflow has many dependencies. The constraints file pins versions that are tested together, so installs are reproducible and don't break.
 
 27. **What happened to ADF's managed Airflow, and what replaces it?**
+
     ADF Workflow Orchestration Manager is deprecated. Microsoft recommends migrating to the Apache Airflow job in Microsoft Fabric.
 
 28. **Self-hosted or managed Airflow for a small team with no Kubernetes or Linux ops skills?**
+
     Managed (Fabric Airflow job or Astronomer). It removes patching, upgrades, HA and DB backups.
 
 29. **How should Airflow on an Azure VM authenticate to ADLS and ADF?**
+
     With the VM's managed identity (Azure connections without a secret fall back to `DefaultAzureCredential`), granted Storage Blob Data roles and Data Factory Contributor.
 
 30. **With `connections_prefix="airflow-connections"`, which Key Vault secret holds connection `pg_orders`?**
+
     `airflow-connections-pg-orders`, with the connection URI or JSON as its value.
 
 31. **In the nightly DAG, why does ADF do the copy instead of a Python task?**
+
     ADF's Copy activity is built for large, parallel transfers (and on-prem through a SHIR). Python on the Airflow VM would be slow and would overload the orchestrator.
 
 32. **How does the run date reach the Databricks notebook?**
+
     Airflow passes `run_date={{ ds }}` as a job parameter, and the notebook reads it with `dbutils.widgets.get("run_date")`.
 
 33. **Why make the ADF operator deferrable?**
+
     ADF pipelines can run for a long time. Deferring moves the wait into the triggerer, so no worker slot is held.
 
 34. **How do Airflow task failures reach a Teams channel?**
+
     An `on_failure_callback` posts the DAG, task, run ID and log link to a Logic App, which posts to Teams (the Unit 13 pattern).
 
 35. **Task logs vanish when the VM is replaced. Fix?**
+
     Turn on remote logging to a Blob container.
 
 36. **Name three Airflow 2 → 3 renames or removals.**
+
     Any three of: `schedule_interval` → `schedule`, `execution_date` → `logical_date`, Datasets → Assets, webserver → API server, SubDAGs removed, `sla=` removed, `/api/v1` → `/api/v2`, DAG processor split out as its own component.
 
 37. ➕ **How can an Azure event (a blob landing) start an Airflow DAG right away?**
+
     Event Grid → Azure Function → Airflow REST API (start a DAG run or update an Asset). A sensor also works, but it polls instead of reacting instantly.
 
 38. ➕ **What should CI check before a DAG change reaches production?**
+
     That every DAG imports without errors, plus lint, unit tests for helper code, and optionally a test run against dev.

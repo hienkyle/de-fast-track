@@ -298,37 +298,49 @@ data/
 ## Practice Questions
 
 1. **What is the difference between the working directory, the staging area, and the local repository?**
-   The working directory holds your current edits. The staging area holds changes selected for the next commit. The local repository holds the committed history.
+
+    The working directory holds your current edits. The staging area holds changes selected for the next commit. The local repository holds the committed history.
 
 2. **What does `git pull` do that `git fetch` does not?**
-   `pull` also integrates the downloaded changes into your current branch (by merge or rebase). `fetch` only downloads.
+
+    `pull` also integrates the downloaded changes into your current branch (by merge or rebase). `fetch` only downloads.
 
 3. **You branched from `main`, made three commits, and no one else touched `main`. What kind of merge happens, and is a merge commit created?**
-   A fast-forward merge. No merge commit is created: Git just moves the pointer forward.
+
+    A fast-forward merge. No merge commit is created: Git just moves the pointer forward.
 
 4. **Your push is rejected because the remote contains work you don't have. What should you do?**
-   Pull (or fetch and merge/rebase) the remote changes, resolve any conflicts, then push again.
+
+    Pull (or fetch and merge/rebase) the remote changes, resolve any conflicts, then push again.
 
 5. **You pushed a commit that broke a production pipeline, and teammates have already pulled it. `git reset` or `git revert`? Why?**
-   `git revert`. It adds a new commit that undoes the change without rewriting shared history. `reset` would rewrite history that others already have.
+
+    `git revert`. It adds a new commit that undoes the change without rewriting shared history. `reset` would rewrite history that others already have.
 
 6. **A teammate committed a database password, then deleted it in the next commit. Is the problem solved?**
-   No. The password is still in the repository's history. It must be rotated, and the history cleaned if needed.
+
+    No. The password is still in the repository's history. It must be rotated, and the history cleaned if needed.
 
 7. **After `git rebase main` on your feature branch, why do your commits have different hashes?**
-   Rebase re-applies your changes on top of a new parent commit. A commit's hash depends on its parent, so the result is new commits with new hashes, even though the changes are the same.
+
+    Rebase re-applies your changes on top of a new parent commit. A commit's hash depends on its parent, so the result is new commits with new hashes, even though the changes are the same.
 
 8. **Why is it risky to rebase a branch other people are working on?**
-   Rebase replaces the original commits with new ones. Collaborators' copies still have the old commits, so their history diverges from yours, causing duplicated commits and confusing conflicts.
+
+    Rebase replaces the original commits with new ones. Collaborators' copies still have the old commits, so their history diverges from yours, causing duplicated commits and confusing conflicts.
 
 9. **You rebased a feature branch you had already pushed, and now `git push` is rejected. What should you run, and why that option?**
-   `git push --force-with-lease`. A force push is needed because the remote has the old commits. `--force-with-lease` is safer than `--force` because it won't overwrite work someone else pushed in the meantime.
+
+    `git push --force-with-lease`. A force push is needed because the remote has the old commits. `--force-with-lease` is safer than `--force` because it won't overwrite work someone else pushed in the meantime.
 
 10. **Name three things a data engineering repo's `.gitignore` should typically include. What can't `.gitignore` handle?**
+
     Any three of: `.env`/secrets files, virtual environments, data files, logs, `__pycache__`, notebook checkpoints. It can't remove notebook outputs, because they live inside the `.ipynb` file: clear them before committing or use `nbstripout`.
 
 11. **What is the purpose of branch protection rules on `main`?**
+
     They keep `main` stable by requiring reviewed PRs and passing checks, and by blocking direct pushes and force pushes.
 
 12. **List two characteristics of a pull request that is easy to review.**
+
     Any two of: small and focused scope, a clear description of what and why, testing notes, a linked ticket.

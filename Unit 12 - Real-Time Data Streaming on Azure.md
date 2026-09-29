@@ -588,10 +588,10 @@ paid = orders.alias("o").join(payments.alias("p"), F.expr("""
 - **Lakeflow Jobs** (Unit 11) run streaming queries with **retries on failure** (an always-on job restarts from its checkpoint) or on a schedule with `availableNow`.
 - **Lakeflow Declarative Pipelines** (formerly DLT): **streaming tables** are exactly this, declared instead of hand-written. Expectations handle data quality, and checkpoints are managed for you. For a new bronze → silver streaming pipeline, this is often the simplest option.
 - **Monitoring:**
-  - `query.status` and `query.lastProgress` (input rows/sec vs **processed rows/sec**, batch duration)
-  - The Spark UI **Structured Streaming tab**
-  - A `StreamingQueryListener` to push metrics to Log Analytics
-  - **Consumer lag** in Event Hubs. If processed rows/sec stays below input rows/sec, you're falling behind.
+    - `query.status` and `query.lastProgress` (input rows/sec vs **processed rows/sec**, batch duration)
+    - The Spark UI **Structured Streaming tab**
+    - A `StreamingQueryListener` to push metrics to Log Analytics
+    - **Consumer lag** in Event Hubs. If processed rows/sec stays below input rows/sec, you're falling behind.
 - **Small files:** frequent micro-batches create many small Delta files. Use a longer trigger interval, **optimized writes / auto compaction**, and `OPTIMIZE` / liquid clustering (Unit 11).
 - **Compute:** a job cluster or serverless. Size it for **peak** input rate. Autoscaling works less smoothly for streaming, so test it.
 
@@ -687,139 +687,185 @@ Many architectures use **both**, reading the same event hub through **separate c
 ## Practice Questions
 
 1. **List three differences between batch and stream processing.**
-   Bounded vs unbounded input. Scheduled runs that stop vs a job that's always running. Minutes-to-hours latency vs seconds. (Also: a streaming job must deal with late data, state, and failures while it runs.)
+
+    Bounded vs unbounded input. Scheduled runs that stop vs a job that's always running. Minutes-to-hours latency vs seconds. (Also: a streaming job must deal with late data, state, and failures while it runs.)
 
 2. **Give one use case that needs streaming and one that doesn't.**
-   Card fraud alerts need streaming. A nightly sales star schema doesn't.
+
+    Card fraud alerts need streaming. A nightly sales star schema doesn't.
 
 3. **What's the difference between event time and processing time, and which should a "revenue per 5 minutes" metric use?**
-   Event time is when it happened. Processing time is when your job handled it. Use event time, so delayed events still land in the right window.
+
+    Event time is when it happened. Processing time is when your job handled it. Use event time, so delayed events still land in the right window.
 
 4. **Compare tumbling, hopping, sliding, and session windows.**
-   Tumbling: fixed size, no overlap. Hopping: fixed size with overlap (size + hop). Sliding: output whenever an event enters or leaves the window. Session: activity-based, closes after a gap of inactivity.
+
+    Tumbling: fixed size, no overlap. Hopping: fixed size with overlap (size + hop). Sliding: output whenever an event enters or leaves the window. Session: activity-based, closes after a gap of inactivity.
 
 5. **What is a watermark, and what's the trade-off in choosing its delay?**
-   An estimate that all events up to time T have arrived. It's used to finalize windows and drop state. A longer delay gives more complete results but more latency and state. A shorter delay gives faster results but drops more late events.
+
+    An estimate that all events up to time T have arrived. It's used to finalize windows and drop state. A longer delay gives more complete results but more latency and state. A shorter delay gives faster results but drops more late events.
 
 6. **Why is exactly-once described as "end-to-end"? What three things does it need?**
-   Every link must cooperate. It needs a replayable source, checkpointed progress, and an idempotent or transactional sink.
+
+    Every link must cooperate. It needs a replayable source, checkpointed progress, and an idempotent or transactional sink.
 
 7. **Event Hubs is at-least-once. What does that mean for your consumer?**
-   The same event can be delivered twice (for example, after a crash before the checkpoint). Processing must be idempotent, or it must deduplicate on an event ID.
+
+    The same event can be delivered twice (for example, after a crash before the checkpoint). Processing must be idempotent, or it must deduplicate on an event ID.
 
 8. ➕ **Lambda vs Kappa?**
-   Lambda has separate batch and speed layers (two codebases). Kappa has one streaming path and reprocesses by replaying the log.
+
+    Lambda has separate batch and speed layers (two codebases). Kappa has one streaming path and reprocesses by replaying the log.
 
 9. **Map Kafka terms to Event Hubs: cluster, topic, partition, consumer group.**
-   Namespace, event hub, partition, consumer group.
+
+    Namespace, event hub, partition, consumer group.
 
 10. **Why do partitions matter, and what does order look like across them?**
+
     They're the unit of parallelism (about one reader per partition per consumer group). Order is guaranteed only within a partition, never across the whole event hub.
 
 11. **All events for one order must be processed in order. How?**
+
     Send them with `partition_key = order_id`. The same key always goes to the same partition, which keeps them in order.
 
 12. **Your event hub has 4 partitions and you start 8 consumers in one consumer group. What happens?**
+
     Only 4 do useful work (one per partition). The rest sit idle. To scale further you need more partitions, which only Premium/Dedicated can add after creation.
 
 13. **What is a consumer group, and why give Stream Analytics and Databricks separate ones?**
+
     An independent view of the event hub with its own offsets. Separate groups let each application read at its own pace without affecting the other.
 
 14. **Who tracks what a consumer has processed in Event Hubs?**
+
     The consumer, by checkpointing offsets to a store (usually Blob storage). Event Hubs only retains events.
 
 15. **Reading events deletes them from Event Hubs: true or false?**
+
     False. Events stay until retention expires, which enables replay and multiple consumers.
 
 16. **Your producer gets `ServerBusy` errors on a Standard namespace. Why, and what do you do?**
+
     It's being throttled for exceeding its throughput units. Add TUs or turn on auto-inflate (or move to Premium). Also batch your sends.
 
 17. **What does Event Hubs Capture do, and why is it useful?**
+
     It writes events automatically to ADLS/Blob (Avro/Parquet), giving a raw bronze archive for replay and history beyond retention, with no code.
 
 18. **How does an existing Kafka app connect to Event Hubs?**
+
     Change the configuration only: bootstrap server `<namespace>.servicebus.windows.net:9093`, SASL_SSL, and PLAIN with `$ConnectionString` (or OAUTHBEARER with Entra). Keep the code.
 
 19. **How should producers and consumers authenticate?**
+
     With Entra ID and managed identities, using the Event Hubs Data Sender/Receiver roles. SAS keys are legacy. Keep them in Key Vault if you must use them.
 
 20. ➕ **Event Hubs, Service Bus, or Event Grid for: (a) clickstream analytics, (b) "charge payment for order 5001" commands, (c) "a blob was created" notifications?**
+
     (a) Event Hubs, (b) Service Bus, (c) Event Grid.
 
 21. **What are the three parts of a Stream Analytics job?**
+
     Inputs (stream and reference), a SQL query, and outputs.
 
 22. **What does `TIMESTAMP BY` do, and what's used without it?**
+
     It sets event time from a field in the event. Without it, ASA uses arrival time (EventEnqueuedUtcTime).
 
 23. **Write an ASA query for order count and revenue per 1-minute tumbling window.**
+
     `SELECT System.Timestamp() AS window_end, COUNT(*), SUM(total_amount) INTO [out] FROM [in] TIMESTAMP BY order_ts GROUP BY TumblingWindow(minute, 1)`
 
 24. **"Alert if a card has 3+ orders within any 1-minute span." Which window?**
+
     A sliding window: `GROUP BY card_hash, SlidingWindow(minute, 1) HAVING COUNT(*) >= 3`.
 
 25. **Why must an ASA stream–stream join include `DATEDIFF`, but a reference-data join doesn't?**
+
     Without a time bound, ASA would have to keep every event from both streams forever. Reference data is a finite lookup table held in memory.
 
 26. **What is reference data in ASA? Give an example.**
+
     Static or slowly changing lookup data (from Blob or SQL) that's joined to the stream, such as a product catalog for adding the category.
 
 27. **What do the late arrival and out-of-order policies control?**
+
     How late or out-of-order an event can be and still be included, and whether events outside those limits are adjusted or dropped.
 
 28. **Your ASA job's watermark delay keeps growing and SU utilization is at 95%. What do you do?**
+
     The job is falling behind. Add SUs, make the query parallel (partition-aligned input, query, and output), and simplify heavy steps.
 
 29. **ASA outputs are mostly at-least-once. How do you avoid duplicate rows in Azure SQL?**
+
     Write to a table with a key and upsert (or deduplicate downstream).
 
 30. **When would you choose ASA over Databricks for streaming?**
+
     For a SQL team, fast setup, windowed aggregates or alerts, and Power BI/SQL outputs, with no cluster to run. Choose Databricks for complex logic, large state, ML, or lakehouse tables.
 
 31. **Explain the "unbounded table" model of Structured Streaming.**
+
     The stream is a table that keeps growing. You write normal DataFrame queries, and Spark runs them incrementally on each new micro-batch.
 
 32. **What code changes turn a batch job into a streaming one?**
+
     `read` → `readStream`, `write` → `writeStream` with a checkpoint location, and `.start()` / `.toTable()`. The transformations stay the same.
 
 33. **Why does `startingOffsets = "earliest"` not reprocess everything after a restart?**
+
     It's used only when there's no checkpoint. Once one exists, Spark resumes from the checkpointed offsets.
 
 34. **What is stored in a streaming checkpoint?**
+
     Source offsets per micro-batch, the commit log, and the state store (windows, dedup keys, join buffers).
 
 35. **Two streaming queries write to different tables. Can they share a checkpoint?**
+
     No. Each query needs its own checkpoint location.
 
 36. **A windowed aggregation in append mode writes nothing for 10 minutes. Why?**
+
     In append mode, a window is written only after the watermark passes its end, so results appear after roughly window size + watermark delay.
 
 37. **Append, update, or complete: which one for (a) cleaned events into bronze/silver, (b) a small count per category shown in full each time, (c) changing aggregates upserted to a table?**
+
     (a) Append, (b) complete, (c) update (with `foreachBatch` + MERGE).
 
 38. **What happens to state if you run `dropDuplicates` on a stream without a watermark?**
+
     It grows forever, because Spark must remember every key it has seen. Use `withWatermark` + `dropDuplicatesWithinWatermark`.
 
 39. **How do you keep a "latest status per order" table from a stream of order events?**
+
     `foreachBatch`: deduplicate within the micro-batch, then MERGE into Delta, updating only when the incoming event is newer.
 
 40. **Stream–static vs stream–stream join: what does each need?**
+
     Stream–static needs nothing special (the static Delta table is re-read each micro-batch). Stream–stream needs watermarks on both sides and a time-range join condition.
 
 41. **When would you use `trigger(availableNow=True)` instead of an always-on stream?**
+
     When data a few minutes old is fresh enough. It processes everything new and stops, so it can run on a schedule at a fraction of the cost with the same code.
 
 42. **How do you tell if a Structured Streaming query is falling behind?**
+
     Processed rows/sec stays below input rows/sec, batch duration keeps rising, and Event Hubs consumer lag grows.
 
 43. **Why do streaming Delta tables often have a small-files problem, and how do you fix it?**
+
     Every micro-batch writes files. Use longer trigger intervals, optimized writes / auto compaction, and regular `OPTIMIZE` (or liquid clustering).
 
 44. **Where do Lakeflow Declarative Pipelines fit in streaming?**
+
     Their streaming tables are declarative Structured Streaming: incremental processing, managed checkpoints, and expectations for data quality. They're a simple way to build bronze → silver streaming.
 
 45. ➕ **Sketch a real-time architecture for live sales plus fresh lakehouse tables.**
+
     App → Event Hubs (partition key = order_id) → (a) ASA with consumer group `cg-asa` → Power BI and fraud alerts, (b) Databricks with `cg-databricks` → bronze/silver/gold Delta, (c) Capture → ADLS for replay. Nightly batch still builds the star schema.
 
 46. ➕ **Your streaming job was down for 6 hours. Event Hubs retention is 7 days. What happens when you restart it?**
+
     It resumes from its checkpoint and catches up on the backlog (use `maxOffsetsPerTrigger` to control batch size). Nothing is lost because the events are still retained. With downtime longer than retention, you'd have to recover from the Capture archive.

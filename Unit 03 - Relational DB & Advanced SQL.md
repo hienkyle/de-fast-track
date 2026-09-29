@@ -39,6 +39,7 @@ Atomicity, Consistency, Isolation, Durability. These guarantees make OLTP data t
 
 ### Rule 3: Normalization
 **Goal:** reduce **redundancy** and prevent **anomalies**:
+
 - **Update anomaly:** a user's phone number is stored in 50 order rows. You update 49 of them and the data now contradicts itself.
 - **Insert anomaly:** you can't add a product until someone orders it, because products only exist inside order rows.
 - **Delete anomaly:** deleting the last order for a product also deletes everything you knew about that product.
@@ -174,6 +175,7 @@ SELECT * FROM tree;
 
 ### 5. Window functions
 A window function calculates across a set of rows related to the current row, **without collapsing rows** the way `GROUP BY` does.
+
 - `PARTITION BY` splits the rows into groups. `ORDER BY` sets the order inside each group.
 - Example: `ROW_NUMBER() OVER (PARTITION BY city ORDER BY salary DESC)` numbers employees within each city, highest salary first.
 
@@ -249,6 +251,7 @@ CREATE TRIGGER trg_order_item_line_total
 BEFORE INSERT OR UPDATE ON order_item
 FOR EACH ROW EXECUTE FUNCTION set_line_total();
 ```
+
 - `BEFORE` triggers can change `NEW` before it is written. `AFTER` triggers suit audit logs and updates to other tables.
 - `FOR EACH ROW` fires once per row. `FOR EACH STATEMENT` fires once per statement.
 
@@ -304,6 +307,7 @@ SELECT qty_on_hand, qty_reserved FROM products WHERE id = 10 FOR UPDATE;   -- ot
 UPDATE products SET qty_reserved = qty_reserved + 2 WHERE id = 10;
 COMMIT;
 ```
+
 - Safe and simple, but other users wait, it scales poorly under heavy traffic, and it risks deadlocks. Best suited to smaller applications. It also fits cases where conflicts are frequent and transactions are short.
 
 **Optimistic locking** assumes conflicts are rare and uses a **version** column.
@@ -314,6 +318,7 @@ UPDATE products
  WHERE id = 10 AND version = 3;
 -- 0 rows updated → someone else changed it → reload and retry (or report a conflict)
 ```
+
 - No locks are held while the user "thinks," so it scales well. Conflicts turn into retries. Common in web apps and ORMs.
 
 **Deadlock:** transaction A locks row 1 and waits for row 2, while B locks row 2 and waits for row 1. The DB detects this and aborts one of them. **Prevention:** always lock rows in a consistent order (e.g., by ascending `id`), keep transactions short, and retry the aborted one.
@@ -345,6 +350,7 @@ UPDATE products
 Engine note: MySQL InnoDB always clusters on the PK. PostgreSQL stores tables as an unordered **heap**, so all its indexes are non-clustered. The `CLUSTER` command reorders the table once, and the order is not maintained.
 
 **Using two indexed columns in one query**, e.g., `WHERE city = 'HN' AND age > 30`:
+
 - **Index filter:** estimate which index narrows the rows down more (is more **selective**), use it to load candidate rows into RAM, then check the other condition in memory.
 - **Index merge / intersection:** scan both B-Trees and **intersect** the row pointers. Used when the two conditions are similarly selective. Postgres calls this a *Bitmap AND*.
 - Often better: a **composite index** `(city, age)`.
@@ -360,12 +366,14 @@ Engine note: MySQL InnoDB always clusters on the PK. PostgreSQL stores tables as
 
 ### Query optimization
 **Read the execution plan:** `EXPLAIN` shows the estimated plan, and `EXPLAIN ANALYZE` runs the query and shows actual times.
+
 - `Seq Scan`: reads the whole table. Fine for small tables, a red flag on big ones.
 - `Index Scan` / `Index Only Scan` / `Bitmap Heap Scan`
 - Join algorithms: `Nested Loop` (small inputs), `Hash Join` (large, equality), `Merge Join` (sorted inputs)
 - A big gap between estimated and actual row counts means statistics are stale. Run `ANALYZE`.
 
 **Common fixes:**
+
 | Problem | Fix |
 |---|---|
 | `SELECT *` | Select only needed columns (enables covering indexes, less I/O) |
@@ -409,28 +417,36 @@ Engine note: MySQL InnoDB always clusters on the PK. PostgreSQL stores tables as
 ## Practice Questions
 
 1. **What is OLTP optimized for, and what is OLAP optimized for?**
-   OLTP handles fast, frequent write transactions (CRUD, procedures, functions). OLAP handles heavy read queries for reporting.
+
+    OLTP handles fast, frequent write transactions (CRUD, procedures, functions). OLAP handles heavy read queries for reporting.
 
 2. **What can happen if you run OLAP-style queries on the OLTP system?**
-   The heavy queries can lock data the application needs, so its transactions wait, time out, or fail.
+
+    The heavy queries can lock data the application needs, so its transactions wait, time out, or fail.
 
 3. **A table has `categories = "shoes, sale"`. Which normal form does it break, and how do you fix it?**
-   1NF (the value isn't atomic). Create `categories` and a junction table `product_categ(prod_id, categ_id)`.
+
+    1NF (the value isn't atomic). Create `categories` and a junction table `product_categ(prod_id, categ_id)`.
 
 4. **In `order_item(order_id, prod_id, product_name, qty)` with PK `(order_id, prod_id)`, what's wrong?**
-   A 2NF violation: `product_name` depends only on `prod_id`, which is part of the key. Move it to `products`.
+
+    A 2NF violation: `product_name` depends only on `prod_id`, which is part of the key. Move it to `products`.
 
 5. **How do you model "a user can have many addresses" and "a product can be in many categories"?**
-   1–M: put `user_id FK` in `addresses`. M–M: use a junction table `product_categ(prod_id, categ_id)`.
+
+    1–M: put `user_id FK` in `addresses`. M–M: use a junction table `product_categ(prod_id, categ_id)`.
 
 6. **Why does `SELECT price * qty AS total FROM t WHERE total > 100` fail?**
-   `WHERE` runs before `SELECT`, so the alias doesn't exist yet. Repeat the expression, or wrap the query in a CTE or subquery.
+
+    `WHERE` runs before `SELECT`, so the alias doesn't exist yet. Repeat the expression, or wrap the query in a CTE or subquery.
 
 7. **Write a query to find users who have never placed an order.**
-   `LEFT JOIN orders` and filter with `WHERE o.id IS NULL`, or use `WHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.user_id = u.id)`.
+
+    `LEFT JOIN orders` and filter with `WHERE o.id IS NULL`, or use `WHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.user_id = u.id)`.
 
 8. **Why can `NOT IN (subquery)` return no rows unexpectedly?**
-   If the subquery returns any NULL, every comparison becomes UNKNOWN. Use `NOT EXISTS`.
+
+    If the subquery returns any NULL, every comparison becomes UNKNOWN. Use `NOT EXISTS`.
 
 9. **Get the highest-paid employee in each city.**
    ```sql
@@ -440,40 +456,53 @@ Engine note: MySQL InnoDB always clusters on the PK. PostgreSQL stores tables as
    Use `RANK()` if ties should all be returned.
 
 10. **`ROW_NUMBER` vs `RANK` vs `DENSE_RANK` for salaries 100, 100, 90?**
+
     1,2,3 / 1,1,3 / 1,1,2.
 
 11. **Function vs stored procedure vs trigger: when would you use each?**
+
     A function for a reusable calculation inside SQL. A procedure for a multi-step operation that needs transaction control. A trigger for automatic side effects on writes (audit logs, derived columns).
 
 12. **Name two downsides of heavy trigger use in OLTP.**
+
     They hide logic, which makes debugging harder, and they add cost to every write, which lowers throughput. Chained triggers can also cascade unexpectedly.
 
 13. **Explain each ACID property using a checkout transaction.**
+
     Atomicity: the order, items, stock reservation, and payment all commit, or none do. Consistency: FKs and `CHECK`s hold (e.g., stock can't go negative). Isolation: two shoppers buying the last item don't corrupt each other's transaction. Durability: once "Order placed" shows, the order survives a crash because the WAL is on disk.
 
 14. **Two admins edit the same product at the same time and one change disappears. What is this called, and give two fixes.**
+
     A lost update. Fix with pessimistic locking (`SELECT ... FOR UPDATE`) or optimistic locking (a `version` column, update `WHERE version = n`, and retry when 0 rows are updated).
 
 15. **When would you choose optimistic over pessimistic locking?**
+
     When conflicts are rare and throughput matters, such as web apps where users hold data for a long time before saving. Choose pessimistic when conflicts are frequent and transactions are short.
 
 16. **What causes a deadlock and how do you prevent it?**
+
     Two transactions each hold a lock the other needs. Lock rows in a consistent order, keep transactions short, and retry the aborted transaction.
 
 17. **Why are B-Tree lookups fast, and why are leaves linked?**
+
     Nodes hold many keys, so the tree is only a few levels deep, and each level is about one page read. Linked leaves let range queries (`BETWEEN`, `ORDER BY`) walk neighboring leaves without climbing back up the tree.
 
 18. **Clustered vs non-clustered index: how many of each can a table have?**
+
     One clustered index (the table's physical order, with data in the leaves). Many non-clustered indexes (their leaves point to the row or PK).
 
 19. **You have an index on `(last_name, first_name)`. Which queries can use it?**
+
     `WHERE last_name = ?` and `WHERE last_name = ? AND first_name = ?`. Not `WHERE first_name = ?` alone (leftmost-prefix rule).
 
 20. **Why might `WHERE EXTRACT(YEAR FROM created_at) = 2026` be slow, and how do you rewrite it?**
+
     The function on the column prevents index use (not sargable). Rewrite as `created_at >= '2026-01-01' AND created_at < '2027-01-01'`.
 
 21. **Why not just index every column?**
+
     Every write must update every index, which slows `INSERT/UPDATE/DELETE`, and indexes use disk and memory. Low-selectivity columns gain little from an index.
 
 22. **Pagination with `OFFSET 100000` is slow. Why, and what's the fix?**
+
     The DB still reads and throws away 100,000 rows. Use keyset pagination: `WHERE id > :last_id ORDER BY id LIMIT 50`.
