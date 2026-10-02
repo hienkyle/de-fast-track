@@ -240,6 +240,62 @@ JOIN gold.dim_product p ON f.product_key = p.product_key
 GROUP BY 1, 2;
 ```
 
+#### Sample data
+
+This is the same e-commerce store, shrunk to a few rows so you can follow each key by eye.
+
+**`fact_sales`** (grain: one row per order line)
+
+| date_key | customer_key | product_key | location_key | order_id | quantity | unit_price | gross_amount | discount_amount |
+|---|---|---|---|---|---|---|---|---|
+| 20260923 | 1 | 1 | 1 | 9001 | 1 | 120.00 | 120.00 | 0.00 |
+| 20260923 | 1 | 2 | 1 | 9001 | 2 | 25.00 | 50.00 | 5.00 |
+| 20260924 | 2 | 3 | 3 | 9002 | 1 | 450.00 | 450.00 | 45.00 |
+| 20261003 | 1 | 4 | 2 | 9003 | 1 | 300.00 | 300.00 | 0.00 |
+| 20261003 | 2 | 2 | 3 | 9004 | 10 | 25.00 | 250.00 | 25.00 |
+
+**`dim_product`** (denormalized: category and department sit right on the row)
+
+| product_key | product_id | sku | product_name | category | department |
+|---|---|---|---|---|---|
+| 1 | 501 | KB-001 | Mechanical Keyboard | Keyboards | Electronics |
+| 2 | 502 | MS-002 | Wireless Mouse | Mice | Electronics |
+| 3 | 503 | DK-010 | Standing Desk | Desks | Furniture |
+| 4 | 504 | CH-020 | Ergonomic Chair | Chairs | Furniture |
+
+**`dim_date`**
+
+| date_key | full_date | day_name | year_month | quarter | is_weekend |
+|---|---|---|---|---|---|
+| 20260923 | 2026-09-23 | Wednesday | 2026-09 | Q3 | false |
+| 20260924 | 2026-09-24 | Thursday | 2026-09 | Q3 | false |
+| 20261003 | 2026-10-03 | Saturday | 2026-10 | Q4 | true |
+
+**`dim_customer`**
+
+| customer_key | user_id | full_name | segment |
+|---|---|---|---|
+| 1 | 101 | An Nguyen | Retail |
+| 2 | 102 | Ben Carter | Wholesale |
+
+**`dim_location`** (ship-to)
+
+| location_key | city | region | country |
+|---|---|---|---|
+| 1 | Ho Chi Minh City | South | Vietnam |
+| 2 | Hanoi | North | Vietnam |
+| 3 | Austin | Texas | USA |
+
+**What the query above returns** (revenue by month and category):
+
+| year_month | category | revenue |
+|---|---|---|
+| 2026-09 | Keyboards | 120.00 |
+| 2026-09 | Mice | 50.00 |
+| 2026-09 | Desks | 450.00 |
+| 2026-10 | Chairs | 300.00 |
+| 2026-10 | Mice | 250.00 |
+
 ### 4. Star schema design rules
 
 These seven rules are condensed from Kimball's essential rules of dimensional modeling:
@@ -252,13 +308,89 @@ These seven rules are condensed from Kimball's essential rules of dimensional mo
 6. **Descriptive attributes and labels go in denormalized dimensions.** The fact table holds only foreign keys, numeric measures, and degenerate dimensions. No text descriptions in facts.
 7. **Use conformed dimensions** (the same `dim_date`, `dim_customer`, `dim_product`) across all fact tables so results can be compared and combined across business processes.
 
+#### The rules in the sample data
+
+| Rule | Where to see it |
+|---|---|
+| 1–2. Process and grain first, at the atomic level | Order 9001 has **two rows**, one per line (keyboard and mouse). You can roll up to order level, but you couldn't split a daily total back into lines. |
+| 3. Same grain for every fact | There's no `shipping_fee` column. Shipping is charged per order, not per line, so it would be counted twice on order 9001. |
+| 4. Date dimension through a key | `date_key = 20260923` links to `dim_date`, which already holds `day_name`, `quarter` and `is_weekend`. You never parse a timestamp. |
+| 5. Surrogate keys | `product_key = 1` belongs to the warehouse, and `product_id = 501` is the OLTP ID. If the source system reuses or changes IDs, the warehouse keys still hold. |
+| 6. Text lives in dimensions | The fact table has only keys, numbers, and `order_id` (degenerate). "Electronics" appears only in `dim_product`. |
+| 7. Conformed dimensions | A later `fact_returns` would reuse these same `dim_product` and `dim_date` tables, so "returns vs. sales by category" lines up exactly. |
+
+**A bad fact row** (it breaks rules 3, 5 and 6):
+
+| order_date | product_id | product_name | category | quantity | gross_amount | shipping_fee |
+|---|---|---|---|---|---|---|
+| 2026-09-23 10:41 | 501 | Mechanical Keyboard | Keyboards | 1 | 120.00 | 15.00 |
+
+It uses a raw timestamp, a natural key, and text in the fact table, and it puts an order-level fee on a line-level row.
+
 ### 5. Snowflake schema
 
 In a snowflake schema, the dimensions are **normalized** into sub-dimensions:
 
 ```
-dim_department ── dim_category ── dim_product ── fact_sales ── dim_customer ── dim_city ── dim_country
+dim_department ── dim_category ── dim_product ── fact_sales ── dim_location ── dim_country
 ```
+
+#### Sample data: the same store, snowflaked
+
+**`fact_sales` is identical** to the star version. Snowflaking only changes the dimensions.
+
+**`dim_product`** (category is now a key)
+
+| product_key | product_id | sku | product_name | category_key |
+|---|---|---|---|---|
+| 1 | 501 | KB-001 | Mechanical Keyboard | 1 |
+| 2 | 502 | MS-002 | Wireless Mouse | 2 |
+| 3 | 503 | DK-010 | Standing Desk | 3 |
+| 4 | 504 | CH-020 | Ergonomic Chair | 4 |
+
+**`dim_category`**
+
+| category_key | category_name | department_key |
+|---|---|---|
+| 1 | Keyboards | 1 |
+| 2 | Mice | 1 |
+| 3 | Desks | 2 |
+| 4 | Chairs | 2 |
+
+**`dim_department`**
+
+| department_key | department_name |
+|---|---|
+| 1 | Electronics |
+| 2 | Furniture |
+
+**`dim_location`** and **`dim_country`**
+
+| location_key | city | region | country_key |
+|---|---|---|---|
+| 1 | Ho Chi Minh City | South | 1 |
+| 2 | Hanoi | North | 1 |
+| 3 | Austin | Texas | 2 |
+
+| country_key | country_name |
+|---|---|
+| 1 | Vietnam |
+| 2 | USA |
+
+**Revenue by department: 1 join (star) vs. 3 joins (snowflake)**
+
+```sql
+-- Snowflake: walk the hierarchy
+SELECT dep.department_name, SUM(f.gross_amount) AS revenue
+FROM gold.fact_sales f
+JOIN gold.dim_product p      ON f.product_key = p.product_key
+JOIN gold.dim_category c     ON p.category_key = c.category_key
+JOIN gold.dim_department dep ON c.department_key = dep.department_key
+GROUP BY 1;
+-- Electronics 420.00 | Furniture 750.00
+```
+
+In the star schema, this is one join to `dim_product` and `GROUP BY p.department`.
 
 ### 6. Star vs snowflake
 
@@ -273,6 +405,16 @@ dim_department ── dim_category ── dim_product ── fact_sales ── d
 | When to use it | **Default choice** for gold/presentation layers | Very large dimensions with deep hierarchies, or a hierarchy shared by several dimensions |
 
 In columnar warehouses, the repeated values in star-schema dimensions compress very well (dictionary encoding and RLE), so the storage savings of snowflaking rarely matter. **Prefer star.**
+
+#### The trade-off in the sample
+
+| Situation | Star | Snowflake |
+|---|---|---|
+| Rename "Electronics" to "Tech" | Update **2 rows** in `dim_product` (every Electronics product) | Update **1 row** in `dim_department` |
+| "Electronics" stored | Once per product (2 times here, thousands in real life) | Once |
+| Revenue by department | 1 join | 3 joins |
+
+With thousands of products, the repeated "Electronics" values compress to almost nothing in a columnar warehouse. The extra joins cost you on every query. That's why star is the default.
 
 ---
 
